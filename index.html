@@ -331,19 +331,19 @@
     <div class="field-row">
       <div class="field"><label>契約日</label>
         <div class="date-wrap"><span class="date-btn" id="btn_start">日付を選ぶ</span>
-        <input type="date" id="f_start" class="date-overlay" onchange="updDate('f_start','btn_start')"></div></div>
+        <input type="date" id="f_start" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_start','btn_start')"></div></div>
       <div class="field"><label>満期日（あれば）</label>
         <div class="date-wrap"><span class="date-btn" id="btn_end">日付を選ぶ</span>
-        <input type="date" id="f_end" class="date-overlay" onchange="updDate('f_end','btn_end')"></div></div>
+        <input type="date" id="f_end" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_end','btn_end')"></div></div>
     </div>
 
     <div class="field-row">
       <div class="field"><label>払込満了（あれば）</label>
         <div class="date-wrap"><span class="date-btn" id="btn_paidup">日付を選ぶ</span>
-        <input type="date" id="f_paidup" class="date-overlay" onchange="updDate('f_paidup','btn_paidup')"></div></div>
+        <input type="date" id="f_paidup" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_paidup','btn_paidup')"></div></div>
       <div class="field"><label>次回引き落とし日（あれば）</label>
         <div class="date-wrap"><span class="date-btn" id="btn_nextpay">日付を選ぶ</span>
-        <input type="date" id="f_nextpay" class="date-overlay" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
+        <input type="date" id="f_nextpay" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
     </div>
 
     <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
