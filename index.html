@@ -133,7 +133,13 @@
   .close-x{width:34px;height:34px;border-radius:50%;background:var(--paper);font-size:18px;color:var(--ink-soft);}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;}
-  .dow{margin-left:8px;font-size:13px;color:var(--teal);font-weight:700;}
+  .date-wrap{position:relative;}
+  .date-btn{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:11px;
+    background:var(--card);text-align:left;font-size:16px;color:var(--ink-soft);cursor:pointer;}
+  .date-btn.has{color:var(--ink);font-weight:700;}
+  .date-btn:active{border-color:var(--teal);}
+  .hidden-date{position:absolute;left:12px;bottom:2px;width:1px;height:1px;opacity:0;
+    border:0;padding:0;pointer-events:none;}
   .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);
     border-radius:11px;background:var(--card);}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal);}
@@ -313,13 +319,21 @@
     </div>
 
     <div class="field-row">
-      <div class="field"><label>契約日<span class="dow" id="dow_start"></span></label><input type="date" id="f_start" oninput="showDow('f_start','dow_start')"></div>
-      <div class="field"><label>満期日（あれば）<span class="dow" id="dow_end"></span></label><input type="date" id="f_end" oninput="showDow('f_end','dow_end')"></div>
+      <div class="field"><label>契約日</label>
+        <div class="date-wrap"><button type="button" class="date-btn" id="btn_start" onclick="openPicker('f_start')">日付を選ぶ</button>
+        <input type="date" id="f_start" class="hidden-date" onchange="updDate('f_start','btn_start')"></div></div>
+      <div class="field"><label>満期日（あれば）</label>
+        <div class="date-wrap"><button type="button" class="date-btn" id="btn_end" onclick="openPicker('f_end')">日付を選ぶ</button>
+        <input type="date" id="f_end" class="hidden-date" onchange="updDate('f_end','btn_end')"></div></div>
     </div>
 
     <div class="field-row">
-      <div class="field"><label>払込満了（あれば）<span class="dow" id="dow_paidup"></span></label><input type="date" id="f_paidup" oninput="showDow('f_paidup','dow_paidup')"></div>
-      <div class="field"><label>次回引き落とし日（あれば）<span class="dow" id="dow_nextpay"></span></label><input type="date" id="f_nextpay" oninput="showDow('f_nextpay','dow_nextpay')"></div>
+      <div class="field"><label>払込満了（あれば）</label>
+        <div class="date-wrap"><button type="button" class="date-btn" id="btn_paidup" onclick="openPicker('f_paidup')">日付を選ぶ</button>
+        <input type="date" id="f_paidup" class="hidden-date" onchange="updDate('f_paidup','btn_paidup')"></div></div>
+      <div class="field"><label>次回引き落とし日（あれば）</label>
+        <div class="date-wrap"><button type="button" class="date-btn" id="btn_nextpay" onclick="openPicker('f_nextpay')">日付を選ぶ</button>
+        <input type="date" id="f_nextpay" class="hidden-date" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
     </div>
 
     <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
@@ -698,7 +712,7 @@ function openForm(id){
   segKake = x.kake||'掛け捨て';
   document.querySelectorAll('#segKake button').forEach(b=>b.classList.toggle('on',b.dataset.v===segKake));
   document.getElementById('tsumiFold').style.display = segKake==='積立'?'block':'none';
-  ['start','end','paidup','nextpay'].forEach(k=>showDow('f_'+k,'dow_'+k));
+  ['start','end','paidup','nextpay'].forEach(k=>updDate('f_'+k,'btn_'+k));
   openModal('formModal');
 }
 
@@ -759,11 +773,18 @@ async function importJson(e){
    小物
    ========================================================= */
 function openModal(id){ document.getElementById(id).classList.add('on'); }
-function showDow(inputId,spanId){
-  const v=document.getElementById(inputId).value, el=document.getElementById(spanId);
-  if(!v){ el.textContent=''; return; }
-  const w=['日','月','火','水','木','金','土'][new Date(v+'T00:00:00').getDay()];
-  el.textContent='（'+w+'曜日）';
+function openPicker(id){
+  const el=document.getElementById(id);
+  if(el.showPicker){ try{ el.showPicker(); return; }catch(e){} }
+  el.focus(); el.click(); // 未対応端末向けの控え
+}
+function updDate(id,btnId){
+  const v=document.getElementById(id).value, b=document.getElementById(btnId);
+  if(!v){ b.textContent='日付を選ぶ'; b.classList.remove('has'); return; }
+  const d=new Date(v+'T00:00:00');
+  const w=['日','月','火','水','木','金','土'][d.getDay()];
+  b.textContent=`${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月${String(d.getDate()).padStart(2,'0')}日（${w}）`;
+  b.classList.add('has');
 }
 function closeModal(id){ document.getElementById(id).classList.remove('on'); }
 function openSettings(){ openModal('setModal'); }
