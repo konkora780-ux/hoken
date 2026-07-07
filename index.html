@@ -241,6 +241,7 @@
   <div class="topbar">
     <button class="mini-btn" id="teaBack">‹ もどる</button>
     <span class="who">せんせい がめん</span>
+    <span style="font-size:13px;font-weight:700;color:#2f8f4e;background:#e7f6ec;padding:2px 8px;border-radius:999px;">v9</span>
     <span class="room" id="teaRoom"></span>
     <span class="spacer"></span>
     <span class="dot" id="teaDot"></span>
@@ -892,19 +893,25 @@ function ensureJSZip(){
     document.head.appendChild(s);
   });
 }
+// ファイル名に使えない文字を置きかえる
+function cleanName(nm){ return (nm||'なまえなし').replace(/[\\/:*?"<>|]/g,'_').trim()||'なまえなし'; }
 async function saveAsZip(list, btn){
   const label=btn.textContent;
   btn.disabled=true; btn.textContent='ほぞん じゅんびちゅう…';
   try{
     const JSZip=await ensureJSZip();
     const zip=new JSZip();
+    // 名前ごとの枚数を先に数える（1枚なら番号なし「名前.png」、複数なら「名前_1.png」…）
+    const counts={};
+    list.forEach(d=>{ const n=cleanName(d.name); counts[n]=(counts[n]||0)+1; });
     const used={};
     list.forEach(d=>{
-      let base=(d.name||'なまえなし').replace(/[\\/:*?"<>|]/g,'_').trim()||'なまえなし';
-      used[base]=(used[base]||0)+1;
-      const idx=String(used[base]).padStart(2,'0');
+      const n=cleanName(d.name);
+      let fname;
+      if(counts[n]===1){ fname=n+'.png'; }
+      else { used[n]=(used[n]||0)+1; fname=n+'_'+used[n]+'.png'; }
       const b64=(d.image||'').split(',')[1];
-      if(b64) zip.file(base+'_'+idx+'.png', b64, {base64:true});
+      if(b64) zip.file(fname, b64, {base64:true});
     });
     const blob=await zip.generateAsync({type:'blob'});
     const url=URL.createObjectURL(blob);
