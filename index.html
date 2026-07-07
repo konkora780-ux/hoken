@@ -1,4 +1,4 @@
-c<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -133,6 +133,7 @@ c<!DOCTYPE html>
   .close-x{width:34px;height:34px;border-radius:50%;background:var(--paper);font-size:18px;color:var(--ink-soft);}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;}
+  .dow{margin-left:8px;font-size:13px;color:var(--teal);font-weight:700;}
   .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);
     border-radius:11px;background:var(--card);}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal);}
@@ -312,13 +313,13 @@ c<!DOCTYPE html>
     </div>
 
     <div class="field-row">
-      <div class="field"><label>契約日</label><input type="date" id="f_start"></div>
-      <div class="field"><label>満期日（あれば）</label><input type="date" id="f_end"></div>
+      <div class="field"><label>契約日<span class="dow" id="dow_start"></span></label><input type="date" id="f_start" oninput="showDow('f_start','dow_start')"></div>
+      <div class="field"><label>満期日（あれば）<span class="dow" id="dow_end"></span></label><input type="date" id="f_end" oninput="showDow('f_end','dow_end')"></div>
     </div>
 
     <div class="field-row">
-      <div class="field"><label>払込満了（あれば）</label><input type="date" id="f_paidup"></div>
-      <div class="field"><label>次回引き落とし日（あれば）</label><input type="date" id="f_nextpay"></div>
+      <div class="field"><label>払込満了（あれば）<span class="dow" id="dow_paidup"></span></label><input type="date" id="f_paidup" oninput="showDow('f_paidup','dow_paidup')"></div>
+      <div class="field"><label>次回引き落とし日（あれば）<span class="dow" id="dow_nextpay"></span></label><input type="date" id="f_nextpay" oninput="showDow('f_nextpay','dow_nextpay')"></div>
     </div>
 
     <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
@@ -394,8 +395,8 @@ c<!DOCTYPE html>
    設定（ここだけ書き換えます）
    ========================================================= */
 const CONFIG = {
-  SUPABASE_URL: 'https://glxszbwsvembyygocekp.supabase.co',
-  SUPABASE_ANON: 'sb_publishable_9grsvrOlzxrzJqsKvqF1ow_u8SFQsII',
+  SUPABASE_URL: 'ここにSupabaseのProject URLを貼る',
+  SUPABASE_ANON: 'ここにSupabaseのanon keyを貼る',
   PASSWORD: 'kazoku'   // ← 家族共通のあいことば。好きな言葉に変えてください。
 };
 
@@ -697,6 +698,7 @@ function openForm(id){
   segKake = x.kake||'掛け捨て';
   document.querySelectorAll('#segKake button').forEach(b=>b.classList.toggle('on',b.dataset.v===segKake));
   document.getElementById('tsumiFold').style.display = segKake==='積立'?'block':'none';
+  ['start','end','paidup','nextpay'].forEach(k=>showDow('f_'+k,'dow_'+k));
   openModal('formModal');
 }
 
@@ -757,6 +759,12 @@ async function importJson(e){
    小物
    ========================================================= */
 function openModal(id){ document.getElementById(id).classList.add('on'); }
+function showDow(inputId,spanId){
+  const v=document.getElementById(inputId).value, el=document.getElementById(spanId);
+  if(!v){ el.textContent=''; return; }
+  const w=['日','月','火','水','木','金','土'][new Date(v+'T00:00:00').getDay()];
+  el.textContent='（'+w+'曜日）';
+}
 function closeModal(id){ document.getElementById(id).classList.remove('on'); }
 function openSettings(){ openModal('setModal'); }
 function toggleView(){
