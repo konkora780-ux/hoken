@@ -134,12 +134,12 @@
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;}
   .date-wrap{position:relative;}
-  .date-btn{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:11px;
-    background:var(--card);text-align:left;font-size:16px;color:var(--ink-soft);cursor:pointer;}
+  .date-btn{display:block;width:100%;padding:13px 12px;border:1.5px solid var(--line);
+    border-radius:11px;background:var(--card);text-align:left;font-size:16px;
+    color:var(--ink-soft);min-height:22px;}
   .date-btn.has{color:var(--ink);font-weight:700;}
-  .date-btn:active{border-color:var(--teal);}
-  .hidden-date{position:absolute;left:12px;bottom:2px;width:1px;height:1px;opacity:0;
-    border:0;padding:0;pointer-events:none;}
+  .date-overlay{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+    border:0;margin:0;padding:0;-webkit-appearance:none;appearance:none;cursor:pointer;}
   .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);
     border-radius:11px;background:var(--card);}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal);}
@@ -172,6 +172,9 @@
   .set-item .sd{font-size:13px;color:var(--ink-soft);margin-bottom:10px;}
   .set-btn{padding:10px 16px;background:var(--paper);border:1px solid var(--line);
     border-radius:10px;font-weight:700;color:var(--ink);font-size:14px;}
+  .set-item input{width:100%;padding:10px 12px;border:1.5px solid var(--line);
+    border-radius:10px;margin-bottom:8px;}
+  .set-item input:focus{outline:none;border-color:var(--teal);}
   .set-btn.warn{background:var(--danger-soft);color:var(--danger);border-color:#E9C9C5;}
 
   .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);
@@ -320,20 +323,20 @@
 
     <div class="field-row">
       <div class="field"><label>契約日</label>
-        <div class="date-wrap"><button type="button" class="date-btn" id="btn_start" onclick="openPicker('f_start')">日付を選ぶ</button>
-        <input type="date" id="f_start" class="hidden-date" onchange="updDate('f_start','btn_start')"></div></div>
+        <div class="date-wrap"><span class="date-btn" id="btn_start">日付を選ぶ</span>
+        <input type="date" id="f_start" class="date-overlay" onchange="updDate('f_start','btn_start')"></div></div>
       <div class="field"><label>満期日（あれば）</label>
-        <div class="date-wrap"><button type="button" class="date-btn" id="btn_end" onclick="openPicker('f_end')">日付を選ぶ</button>
-        <input type="date" id="f_end" class="hidden-date" onchange="updDate('f_end','btn_end')"></div></div>
+        <div class="date-wrap"><span class="date-btn" id="btn_end">日付を選ぶ</span>
+        <input type="date" id="f_end" class="date-overlay" onchange="updDate('f_end','btn_end')"></div></div>
     </div>
 
     <div class="field-row">
       <div class="field"><label>払込満了（あれば）</label>
-        <div class="date-wrap"><button type="button" class="date-btn" id="btn_paidup" onclick="openPicker('f_paidup')">日付を選ぶ</button>
-        <input type="date" id="f_paidup" class="hidden-date" onchange="updDate('f_paidup','btn_paidup')"></div></div>
+        <div class="date-wrap"><span class="date-btn" id="btn_paidup">日付を選ぶ</span>
+        <input type="date" id="f_paidup" class="date-overlay" onchange="updDate('f_paidup','btn_paidup')"></div></div>
       <div class="field"><label>次回引き落とし日（あれば）</label>
-        <div class="date-wrap"><button type="button" class="date-btn" id="btn_nextpay" onclick="openPicker('f_nextpay')">日付を選ぶ</button>
-        <input type="date" id="f_nextpay" class="hidden-date" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
+        <div class="date-wrap"><span class="date-btn" id="btn_nextpay">日付を選ぶ</span>
+        <input type="date" id="f_nextpay" class="date-overlay" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
     </div>
 
     <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
@@ -395,6 +398,13 @@
       <button class="set-btn" onclick="closeModal('setModal');setTimeout(()=>window.print(),300)">印刷する</button>
     </div>
     <div class="set-item">
+      <div class="st">🔑 あいことばの変更</div>
+      <div class="sd">新しいあいことばにします。家族全員の次回ログインから有効です。</div>
+      <input type="password" id="newPw1" placeholder="新しいあいことば" autocomplete="new-password">
+      <input type="password" id="newPw2" placeholder="もう一度入力" autocomplete="new-password">
+      <button class="set-btn" onclick="changePw()">変更する</button>
+    </div>
+    <div class="set-item">
       <div class="st">🔒 ログアウト</div>
       <div class="sd">あいことばの入力画面に戻ります。</div>
       <button class="set-btn warn" onclick="logout()">ログアウト</button>
@@ -437,18 +447,44 @@ let whoFilter = '';
 /* =========================================================
    ログイン
    ========================================================= */
-function tryLogin(){
-  const pw = document.getElementById('gatePw').value;
-  if(pw === CONFIG.PASSWORD){
+let savedHash=null;
+async function sha256(s){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function loadConfig(){
+  if(!useCloud) return;
+  try{
+    const {data}=await sb.from('hoken_config').select('pw_hash').eq('id',1).maybeSingle();
+    if(data && data.pw_hash) savedHash=data.pw_hash;
+  }catch(e){}
+}
+async function tryLogin(){
+  const pw=document.getElementById('gatePw').value;
+  const ok = savedHash ? (await sha256(pw))===savedHash : (pw===CONFIG.PASSWORD);
+  if(ok){
     sessionStorage.setItem('hoken_ok','1');
     document.getElementById('gate').style.display='none';
     loadData();
   }else{
-    document.getElementById('gateErr').textContent = 'あいことばが違います';
+    document.getElementById('gateErr').textContent='あいことばが違います';
   }
 }
 document.getElementById('gatePw').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
 function logout(){ sessionStorage.removeItem('hoken_ok'); location.reload(); }
+async function changePw(){
+  const a=document.getElementById('newPw1').value, b=document.getElementById('newPw2').value;
+  if(a.length<2){ toast('あいことばが短すぎます'); return; }
+  if(a!==b){ toast('2つのあいことばが違います'); return; }
+  if(!useCloud){ toast('クラウド未設定では変更できません'); return; }
+  const hash=await sha256(a);
+  const {error}=await sb.from('hoken_config').upsert({id:1,pw_hash:hash},{onConflict:'id'});
+  if(error){ toast('変更エラー：'+error.message); return; }
+  savedHash=hash;
+  document.getElementById('newPw1').value=''; document.getElementById('newPw2').value='';
+  toast('あいことばを変更しました');
+}
+loadConfig();
 if(sessionStorage.getItem('hoken_ok')==='1'){
   document.getElementById('gate').style.display='none';
 }
@@ -773,11 +809,6 @@ async function importJson(e){
    小物
    ========================================================= */
 function openModal(id){ document.getElementById(id).classList.add('on'); }
-function openPicker(id){
-  const el=document.getElementById(id);
-  if(el.showPicker){ try{ el.showPicker(); return; }catch(e){} }
-  el.focus(); el.click(); // 未対応端末向けの控え
-}
 function updDate(id,btnId){
   const v=document.getElementById(id).value, b=document.getElementById(btnId);
   if(!v){ b.textContent='日付を選ぶ'; b.classList.remove('has'); return; }
