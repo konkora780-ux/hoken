@@ -164,6 +164,13 @@
   .drow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;gap:16px;}
   .drow .dk{color:var(--ink-soft);flex-shrink:0;}
   .drow .dv{font-weight:700;text-align:right;}
+  .doc-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;
+    border-bottom:1px solid var(--line);gap:12px;}
+  .doc-name{color:var(--teal);font-weight:700;cursor:pointer;font-size:14px;
+    word-break:break-all;text-align:left;background:none;padding:0;}
+  .doc-del{background:none;color:var(--danger);font-size:12px;font-weight:700;flex-shrink:0;}
+  .doc-add{margin-top:10px;padding:11px;width:100%;background:var(--teal-soft);
+    color:var(--teal);border:1px dashed var(--teal);border-radius:11px;font-weight:700;font-size:14px;}
 
   /* ---- 設定 ---- */
   .set-item{padding:14px 0;border-bottom:1px solid var(--line);}
@@ -368,6 +375,7 @@
       <button class="close-x" onclick="closeModal('detailModal')">✕</button>
     </div>
     <div id="detailBody"></div>
+    <input type="file" id="docFile" accept="image/*,application/pdf" style="display:none" onchange="uploadDoc(event)">
     <div class="save-bar">
       <button class="btn-main" onclick="editCurrent()">編集する</button>
     </div>
@@ -419,8 +427,8 @@
    設定（ここだけ書き換えます）
    ========================================================= */
 const CONFIG = {
-  SUPABASE_URL: 'https://glxszbwsvembyygocekp.supabase.co',
-  SUPABASE_ANON: 'sb_publishable_9grsvrOlzxrzJqsKvqF1ow_u8SFQsII',
+  SUPABASE_URL: 'ここにSupabaseのProject URLを貼る',
+  SUPABASE_ANON: 'ここにSupabaseのanon keyを貼る',
   PASSWORD: 'kazoku'   // ← 家族共通のあいことば。好きな言葉に変えてください。
 };
 
@@ -716,10 +724,46 @@ function showDetail(id){
   }
   if(x.memo) html += `<div class="detail-block"><div class="dh">メモ</div>
     <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${x.memo}</div></div>`;
+  if(useCloud){
+    const docs=x.docs||[];
+    html += `<div class="detail-block"><div class="dh">証書・書類</div>`;
+    docs.forEach(d=>{
+      html += `<div class="doc-row"><button class="doc-name" onclick="openDoc('${d.path}')">📄 ${d.name}</button>
+        <button class="doc-del" onclick="deleteDoc('${d.path}')">削除</button></div>`;
+    });
+    if(docs.length===0) html += `<div style="font-size:13px;color:var(--ink-soft)">まだ添付はありません</div>`;
+    html += `<button class="doc-add" onclick="document.getElementById('docFile').click()">📎 証書（PDF・写真）を追加</button></div>`;
+  }
   document.getElementById('detailBody').innerHTML = html;
   openModal('detailModal');
 }
 function editCurrent(){ closeModal('detailModal'); openForm(curId); }
+async function uploadDoc(e){
+  const file=e.target.files[0]; if(!file||!curId){ e.target.value=''; return; }
+  if(file.size>10*1024*1024){ toast('10MBまでにしてください'); e.target.value=''; return; }
+  toast('アップロード中…');
+  const safe=file.name.replace(/[^\w.\-一-龠ぁ-んァ-ヶ]/g,'_');
+  const path=`${curId}/${Date.now()}_${safe}`;
+  const {error}=await sb.storage.from('hoken-docs').upload(path,file);
+  if(error){ toast('添付エラー：'+error.message); e.target.value=''; return; }
+  const it=items.find(x=>x.id===curId);
+  it.docs=it.docs||[]; it.docs.push({path,name:file.name});
+  await sb.from('hoken').update({docs:it.docs}).eq('id',curId);
+  showDetail(curId); toast('証書を添付しました'); e.target.value='';
+}
+async function openDoc(path){
+  const {data,error}=await sb.storage.from('hoken-docs').createSignedUrl(path,120);
+  if(error){ toast('開けませんでした：'+error.message); return; }
+  window.open(data.signedUrl,'_blank');
+}
+async function deleteDoc(path){
+  if(!confirm('この証書を削除します。よろしいですか？')) return;
+  await sb.storage.from('hoken-docs').remove([path]);
+  const it=items.find(x=>x.id===curId);
+  it.docs=(it.docs||[]).filter(d=>d.path!==path);
+  await sb.from('hoken').update({docs:it.docs}).eq('id',curId);
+  showDetail(curId); toast('削除しました');
+}
 
 /* =========================================================
    フォーム
@@ -764,6 +808,7 @@ async function saveItem(){
     coverage:f('f_coverage'), beneficiary:f('f_beneficiary'),
     surrender:Number(f('f_surrender'))||0, maturity:Number(f('f_maturity'))||0, returnmemo:f('f_returnmemo'),
     memo:f('f_memo'),
+    docs: curId ? (items.find(i=>i.id===curId)?.docs || []) : [],
     created_at: curId ? (items.find(i=>i.id===curId)?.created_at||new Date().toISOString()) : new Date().toISOString()
   };
   const saved = await upsertRow(row);
