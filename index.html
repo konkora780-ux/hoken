@@ -742,8 +742,8 @@ async function uploadDoc(e){
   const file=e.target.files[0]; if(!file||!curId){ e.target.value=''; return; }
   if(file.size>10*1024*1024){ toast('10MBまでにしてください'); e.target.value=''; return; }
   toast('アップロード中…');
-  const safe=file.name.replace(/[^\w.\-一-龠ぁ-んァ-ヶ]/g,'_');
-  const path=`${curId}/${Date.now()}_${safe}`;
+  const ext=(file.name.split('.').pop()||'dat').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const path=`${curId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
   const {error}=await sb.storage.from('hoken-docs').upload(path,file);
   if(error){ toast('添付エラー：'+error.message); e.target.value=''; return; }
   const it=items.find(x=>x.id===curId);
