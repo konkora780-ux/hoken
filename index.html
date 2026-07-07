@@ -2,887 +2,1030 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>家族の保険台帳</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>おえかき あつめ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#F4F5F3; --card:#FFFFFF; --ink:#243044; --ink-soft:#556074;
-    --line:#E3E1DA; --teal:#2F6F6A; --teal-soft:#EAF1F0;
-    --amber:#C98A3B; --amber-soft:#FBF1E1; --danger:#B4453C; --danger-soft:#F7E7E5;
-    --shadow:0 1px 2px rgba(36,48,68,.06),0 6px 18px rgba(36,48,68,.06);
+    --ink:#2c2c40;
+    --paper:#ffffff;
+    --bg:#f3eee4;
+    --blue:#5b7cfa;
+    --coral:#ff8a5b;
+    --green:#2bb673;
+    --line:#e3dccf;
+    --shadow:0 6px 0 rgba(0,0,0,.10);
   }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:var(--paper);color:var(--ink);
-    font-family:'Hiragino Kaku Gothic ProN','Yu Gothic Medium','Yu Gothic','Meiryo',sans-serif;
-    font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;}
-  body{padding-bottom:80px;}
-  h1,h2,h3{font-weight:700;letter-spacing:.02em;}
-  button{font-family:inherit;cursor:pointer;border:none;}
-  input,select,textarea{font-family:inherit;font-size:16px;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Rounded Mplus 1c',sans-serif;
+    color:var(--ink);background:var(--bg);
+    overflow:hidden;
+  }
+  .screen{display:none;height:100vh;height:100dvh;width:100vw;flex-direction:column;}
+  .screen.active{display:flex;}
 
-  /* ---- ログイン ---- */
-  #gate{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;
-    justify-content:center;z-index:50;padding:24px;}
-  .gate-card{background:var(--card);border:1px solid var(--line);border-radius:18px;
-    box-shadow:var(--shadow);padding:32px 28px;width:100%;max-width:380px;text-align:center;}
-  .gate-mark{width:56px;height:56px;border-radius:16px;background:var(--teal);
-    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;
-    color:#fff;font-size:26px;}
-  .gate-card h1{font-size:21px;margin-bottom:4px;}
-  .gate-card p{color:var(--ink-soft);font-size:13px;margin-bottom:22px;}
-  .gate-card input{width:100%;padding:13px 14px;border:1.5px solid var(--line);
-    border-radius:12px;text-align:center;margin-bottom:12px;}
-  .gate-card input:focus{outline:none;border-color:var(--teal);}
-  .gate-card button{width:100%;padding:13px;background:var(--teal);color:#fff;
-    border-radius:12px;font-size:16px;font-weight:700;}
-  .gate-err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px;}
+  /* ---- 共通ボタン ---- */
+  .btn{
+    font-family:inherit;font-weight:700;border:none;border-radius:18px;
+    padding:16px 22px;font-size:20px;color:#fff;cursor:pointer;
+    box-shadow:var(--shadow);transition:transform .06s;
+  }
+  .btn:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.10);}
+  .btn-blue{background:var(--blue);}
+  .btn-coral{background:var(--coral);}
+  .btn-green{background:var(--green);}
+  .btn-ghost{background:#fff;color:var(--ink);box-shadow:0 4px 0 var(--line);}
+  .btn:disabled{opacity:.45;cursor:default;}
+
+  /* ---- 入口 ---- */
+  #entry{align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;}
+  #entry h1{font-size:clamp(30px,7vw,52px);margin:0;letter-spacing:.04em;}
+  #entry .sub{color:#8a8270;margin-top:-10px;font-size:16px;}
+  .field{display:flex;flex-direction:column;gap:6px;align-items:flex-start;width:min(420px,86vw);}
+  .field label{font-size:15px;color:#7a7363;padding-left:4px;}
+  .field input{
+    font-family:inherit;font-size:22px;padding:14px 16px;border-radius:14px;
+    border:3px solid var(--line);width:100%;background:#fff;color:var(--ink);
+  }
+  .field input:focus{outline:none;border-color:var(--blue);}
+  .role-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:min(420px,86vw);}
+  .role-row .btn{flex:1;min-width:150px;font-size:24px;padding:22px;}
+  .warn{background:#fff3cd;border:2px solid #ffd666;color:#7a5a00;
+    padding:14px 16px;border-radius:14px;max-width:min(560px,90vw);font-size:15px;line-height:1.6;}
 
   /* ---- ヘッダー ---- */
-  header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;}
-  .head-inner{max-width:1000px;margin:0 auto;padding:14px 18px;display:flex;
-    align-items:center;justify-content:space-between;gap:12px;}
-  .brand{display:flex;align-items:center;gap:10px;}
-  .brand-mark{width:34px;height:34px;border-radius:9px;background:var(--teal);color:#fff;
-    display:flex;align-items:center;justify-content:center;font-size:18px;}
-  .brand b{font-size:17px;}
-  .head-tools{display:flex;gap:8px;}
-  .icon-btn{width:38px;height:38px;border-radius:10px;background:var(--paper);
-    border:1px solid var(--line);font-size:17px;color:var(--ink);display:flex;
-    align-items:center;justify-content:center;}
-  .icon-btn:active{background:var(--teal-soft);}
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:3px solid var(--line);flex-wrap:wrap;}
+  .topbar .who{font-weight:700;font-size:18px;}
+  .topbar .room{background:#eef1ff;color:var(--blue);padding:4px 12px;border-radius:999px;font-size:14px;font-weight:700;}
+  .dot{width:11px;height:11px;border-radius:50%;background:#c9c2b4;}
+  .dot.on{background:var(--green);}
+  .spacer{flex:1;}
+  .mini-btn{font-family:inherit;font-weight:700;border:none;background:#f0ece2;color:var(--ink);
+    padding:8px 14px;border-radius:12px;font-size:15px;cursor:pointer;}
 
-  .wrap{max-width:1000px;margin:0 auto;padding:18px;}
+  /* ---- 生徒：お絵かき ---- */
+  #student .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-height:0;}
+  .canvas-wrap{position:relative;background:var(--paper);border-radius:14px;overflow:hidden;
+    box-shadow:0 4px 16px rgba(0,0,0,.10);aspect-ratio:4/3;max-width:100%;max-height:100%;}
+  #photoLayer{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.35;pointer-events:none;display:none;z-index:1;}
+  #drawCanvas{position:absolute;inset:0;width:100%;height:100%;border-radius:14px;touch-action:none;display:block;z-index:2;}
+  #moveBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:3;display:none;
+    background:rgba(30,120,220,.92);color:#fff;font-weight:700;padding:6px 14px;border-radius:999px;font-size:14px;pointer-events:none;}
+  .canvas-wrap.moving #moveBadge{display:block;}
+  .mini-btn.on{background:#1e78dc;color:#fff;}
 
-  /* ---- サマリー ---- */
-  .summary{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin-bottom:16px;}
-  .sum-card{background:var(--card);border:1px solid var(--line);border-radius:16px;
-    box-shadow:var(--shadow);padding:18px;}
-  .sum-card h3{font-size:12px;color:var(--ink-soft);font-weight:700;margin-bottom:10px;
-    letter-spacing:.06em;}
-  .money-row{display:flex;align-items:baseline;gap:6px;margin-bottom:4px;}
-  .money-big{font-size:30px;font-weight:700;letter-spacing:.01em;}
-  .money-unit{font-size:14px;color:var(--ink-soft);}
-  .money-sub{font-size:13px;color:var(--ink-soft);}
-  .donut-wrap{display:flex;align-items:center;gap:16px;}
-  .donut-legend{font-size:13px;line-height:1.9;}
-  .lg-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;
-    vertical-align:middle;}
+  .toolbar{background:#fff;border-top:3px solid var(--line);padding:8px 12px 6px;display:flex;flex-direction:column;gap:8px;}
+  .tool-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;}
+  .grp-label{font-size:13px;font-weight:700;color:#9a9281;background:#f5f1e8;padding:4px 10px;border-radius:999px;white-space:nowrap;}
+  .swatches{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+  .swatch{width:36px;height:36px;border-radius:50%;border:4px solid #fff;box-shadow:0 0 0 2px var(--line);cursor:pointer;}
+  .swatch.sel{box-shadow:0 0 0 4px var(--ink);transform:scale(1.08);}
+  .sizes{display:flex;gap:8px;align-items:center;}
+  .size-dot{width:40px;height:40px;border-radius:12px;background:#f0ece2;display:flex;align-items:center;justify-content:center;cursor:pointer;border:3px solid transparent;}
+  .size-dot.sel{border-color:var(--ink);background:#fff;}
+  .size-dot i{display:block;border-radius:50%;background:var(--ink);}
+  .brush-group,.tool-group{display:flex;gap:8px;}
+  .ico-btn{font-family:inherit;font-weight:700;border:none;border-radius:12px;background:#f0ece2;color:var(--ink);
+    padding:8px 12px;font-size:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:58px;}
+  .ico-btn.sel{background:#ffe8de;border:3px solid var(--coral);}
+  .ico-btn .em{font-size:19px;}
+  .photo-panel{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;background:#faf6ee;border:2px solid var(--line);border-radius:14px;padding:10px;margin-top:2px;}
+  #photoUrl{font-family:inherit;font-size:14px;padding:8px 10px;border-radius:10px;border:2px solid var(--line);min-width:170px;}
+  .opacity-label{font-size:14px;font-weight:700;color:#7a7363;display:flex;align-items:center;gap:6px;}
+  .photo-panel input[type=range]{width:120px;}
+  .submit-bar{display:flex;justify-content:center;padding:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom));background:#fff;}
+  .submit-bar .btn{font-size:22px;padding:14px 40px;}
 
-  .alert-strip{background:var(--amber-soft);border:1px solid #EAD3A6;border-radius:14px;
-    padding:12px 16px;margin-bottom:16px;font-size:14px;display:flex;align-items:center;gap:10px;}
-  .alert-strip.none{background:var(--teal-soft);border-color:#C8DFDB;}
-  .alert-strip b{color:var(--danger);}
+  /* ---- 提出できたよ ---- */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    background:var(--green);color:#fff;font-weight:700;font-size:20px;
+    padding:14px 28px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
 
-  /* ---- フィルタ ---- */
-  .filters{background:var(--card);border:1px solid var(--line);border-radius:16px;
-    box-shadow:var(--shadow);padding:12px;margin-bottom:16px;}
-  .filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-  .search{flex:1;min-width:160px;position:relative;}
-  .search input{width:100%;padding:10px 12px 10px 36px;border:1.5px solid var(--line);
-    border-radius:11px;}
-  .search input:focus{outline:none;border-color:var(--teal);}
-  .search::before{content:"🔍";position:absolute;left:12px;top:50%;transform:translateY(-50%);
-    font-size:14px;opacity:.6;}
-  .chip{padding:9px 14px;border-radius:11px;border:1.5px solid var(--line);background:var(--card);
-    font-size:14px;color:var(--ink-soft);white-space:nowrap;}
-  .chip.on{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:700;}
-  select.chip{padding-right:10px;}
-  .chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-top:8px;}
-  .chips-scroll::-webkit-scrollbar{height:0;}
+  /* ---- 先生 ---- */
+  .tabs{display:flex;gap:8px;padding:10px 14px;background:#fff;border-bottom:3px solid var(--line);}
+  .tab{font-family:inherit;font-weight:700;border:none;background:#f0ece2;color:var(--ink);
+    padding:10px 20px;border-radius:12px;font-size:17px;cursor:pointer;}
+  .tab.sel{background:var(--blue);color:#fff;}
+  .scrollarea{flex:1;min-height:0;overflow-y:auto;}
+  .grid{padding:14px;display:grid;gap:14px;
+    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));}
+  .tile{background:#fff;border-radius:14px;box-shadow:0 3px 10px rgba(0,0,0,.08);overflow:hidden;position:relative;}
+  .tile .name{padding:8px 12px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;}
+  .tile .thumb{position:relative;width:100%;height:180px;background:#fff;overflow:hidden;}
+  .tile .thumb canvas,.tile .thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;background:#fff;}
+  .badge{position:absolute;top:8px;right:8px;background:var(--green);color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;}
+  .empty{flex:1;display:flex;align-items:center;justify-content:center;color:#9a9281;font-size:18px;text-align:center;padding:30px;grid-column:1/-1;}
+  .tile.selected{outline:4px solid #1e78dc;outline-offset:-3px;}
+  .tile.selected::after{content:'✓';position:absolute;top:8px;left:8px;background:#1e78dc;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;z-index:2;}
+  .grid.selecting .tile{cursor:pointer;}
+  .gallery-tools{display:flex;gap:10px;align-items:center;padding:10px 14px;background:#faf6ee;border-bottom:2px solid var(--line);flex-wrap:wrap;}
+  .count{font-weight:700;color:#7a7363;}
 
-  /* ---- 一覧 ---- */
-  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
-  .pcard{background:var(--card);border:1px solid var(--line);border-radius:16px;
-    box-shadow:var(--shadow);padding:16px;position:relative;border-left:5px solid var(--teal);
-    cursor:pointer;transition:transform .08s ease;}
-  .pcard:active{transform:scale(.995);}
-  .pc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
-  .pc-who{font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;}
-  .pc-type{font-size:12px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);
-    padding:3px 9px;border-radius:20px;}
-  .pc-name{font-size:17px;font-weight:700;margin-bottom:2px;line-height:1.3;}
-  .pc-company{font-size:13px;color:var(--ink-soft);margin-bottom:12px;}
-  .pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px;}
-  .pc-grid .k{color:var(--ink-soft);font-size:11px;display:block;}
-  .pc-grid .v{font-weight:700;}
-  .badge-kake{position:absolute;top:14px;right:14px;}
-  .tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;}
-  .tag.kake{background:var(--paper);color:var(--ink-soft);border:1px solid var(--line);}
-  .tag.tsumi{background:var(--teal-soft);color:var(--teal);}
-  .tag.soon{background:var(--danger-soft);color:var(--danger);}
+  /* ---- 拡大モーダル ---- */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;}
+  .modal.show{display:flex;}
+  .modal-card{background:#fff;border-radius:16px;padding:14px;max-width:92vw;max-height:92vh;display:flex;flex-direction:column;gap:10px;}
+  .modal-card img{max-width:88vw;max-height:74vh;border-radius:10px;}
+  .modal-row{display:flex;gap:10px;justify-content:space-between;align-items:center;}
 
-  .empty{text-align:center;padding:60px 20px;color:var(--ink-soft);}
-  .empty .big{font-size:40px;margin-bottom:12px;}
+  /* ---- 削除ボタン（ギャラリー） ---- */
+  .tile .del{position:absolute;top:8px;right:8px;border:none;border-radius:10px;background:rgba(229,72,77,.92);color:#fff;font-size:13px;font-weight:700;padding:5px 10px;cursor:pointer;}
 
-  /* ---- 追加ボタン ---- */
-  .fab{position:fixed;right:22px;bottom:22px;z-index:25;background:var(--teal);color:#fff;
-    border-radius:16px;padding:15px 22px;font-size:16px;font-weight:700;box-shadow:0 6px 20px rgba(47,111,106,.4);
-    display:flex;align-items:center;gap:8px;}
+  /* ---- 提示モード（みんなにみせる） ---- */
+  .present{position:fixed;inset:0;background:#1c1c24;display:none;flex-direction:column;z-index:60;}
+  .present.show{display:flex;}
+  .present-stage{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;min-height:0;}
+  .present-stage img{max-width:96vw;max-height:80vh;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
+  .present-bar{display:flex;align-items:center;justify-content:center;gap:20px;padding:16px;color:#fff;flex-wrap:wrap;}
+  .present-name{font-size:28px;font-weight:700;}
+  .present-count{font-size:18px;color:#b9b4c7;}
+  .present-nav{font-family:inherit;font-size:24px;font-weight:700;border:none;border-radius:14px;background:#3a3a4a;color:#fff;padding:12px 26px;cursor:pointer;}
+  .present-nav:active{transform:translateY(2px);}
+  .present-close{position:absolute;top:16px;right:16px;z-index:2;font-family:inherit;font-weight:700;border:none;border-radius:12px;background:#3a3a4a;color:#fff;padding:10px 16px;font-size:16px;cursor:pointer;}
 
-  /* ---- モーダル ---- */
-  .modal{position:fixed;inset:0;background:rgba(36,48,68,.45);z-index:40;display:none;
-    align-items:flex-end;justify-content:center;}
-  .modal.on{display:flex;}
-  .sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;
-    border-radius:22px 22px 0 0;padding:22px 20px 32px;}
-  @media(min-width:700px){.modal{align-items:center;}.sheet{border-radius:22px;max-height:88vh;}}
-  .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;
-    position:sticky;top:-22px;background:var(--card);padding-top:4px;}
-  .sheet-head h2{font-size:19px;}
-  .close-x{width:34px;height:34px;border-radius:50%;background:var(--paper);font-size:18px;color:var(--ink-soft);}
-  .field{margin-bottom:14px;}
-  .field label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;}
-  .date-wrap{position:relative;}
-  .date-btn{display:block;width:100%;padding:13px 12px;border:1.5px solid var(--line);
-    border-radius:11px;background:var(--card);text-align:left;font-size:16px;
-    color:var(--ink-soft);min-height:22px;}
-  .date-btn.has{color:var(--ink);font-weight:700;}
-  .date-overlay{position:absolute;inset:0;width:100%;height:100%;opacity:0;
-    border:0;margin:0;padding:0;-webkit-appearance:none;appearance:none;cursor:pointer;}
-  .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);
-    border-radius:11px;background:var(--card);}
-  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal);}
-  .field textarea{resize:vertical;min-height:64px;}
-  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .seg{display:flex;gap:8px;}
-  .seg button{flex:1;padding:11px;border-radius:11px;border:1.5px solid var(--line);
-    background:var(--card);font-size:14px;color:var(--ink-soft);font-weight:700;}
-  .seg button.on{background:var(--teal);border-color:var(--teal);color:#fff;}
-  .fold{border-top:1px solid var(--line);margin-top:6px;padding-top:14px;}
-  .fold-title{font-size:13px;font-weight:700;color:var(--teal);margin-bottom:12px;cursor:pointer;}
-  .save-bar{display:flex;gap:10px;margin-top:8px;}
-  .btn-main{flex:1;padding:14px;background:var(--teal);color:#fff;border-radius:12px;
-    font-size:16px;font-weight:700;}
-  .btn-del{padding:14px 18px;background:var(--danger-soft);color:var(--danger);border-radius:12px;
-    font-size:15px;font-weight:700;border:1px solid #E9C9C5;}
-
-  /* ---- 詳細表示 ---- */
-  .detail-block{margin-bottom:16px;}
-  .detail-block .dh{font-size:12px;color:var(--ink-soft);font-weight:700;letter-spacing:.05em;
-    margin-bottom:8px;border-bottom:1px solid var(--line);padding-bottom:6px;}
-  .drow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;gap:16px;}
-  .drow .dk{color:var(--ink-soft);flex-shrink:0;}
-  .drow .dv{font-weight:700;text-align:right;}
-  .doc-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;
-    border-bottom:1px solid var(--line);gap:12px;}
-  .doc-name{color:var(--teal);font-weight:700;cursor:pointer;font-size:14px;
-    word-break:break-all;text-align:left;background:none;padding:0;}
-  .doc-del{background:none;color:var(--danger);font-size:12px;font-weight:700;flex-shrink:0;}
-  .doc-add{margin-top:10px;padding:11px;width:100%;background:var(--teal-soft);
-    color:var(--teal);border:1px dashed var(--teal);border-radius:11px;font-weight:700;font-size:14px;}
-
-  /* ---- 設定 ---- */
-  .set-item{padding:14px 0;border-bottom:1px solid var(--line);}
-  .set-item:last-child{border-bottom:none;}
-  .set-item .st{font-weight:700;margin-bottom:4px;}
-  .set-item .sd{font-size:13px;color:var(--ink-soft);margin-bottom:10px;}
-  .set-btn{padding:10px 16px;background:var(--paper);border:1px solid var(--line);
-    border-radius:10px;font-weight:700;color:var(--ink);font-size:14px;}
-  .set-item input{width:100%;padding:10px 12px;border:1.5px solid var(--line);
-    border-radius:10px;margin-bottom:8px;}
-  .set-item input:focus{outline:none;border-color:var(--teal);}
-  .set-btn.warn{background:var(--danger-soft);color:var(--danger);border-color:#E9C9C5;}
-
-  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);
-    color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:60;opacity:0;
-    transition:opacity .3s;pointer-events:none;box-shadow:var(--shadow);}
-  .toast.on{opacity:1;}
-
-  @media(max-width:560px){
-    .summary{grid-template-columns:1fr;}
-    .money-big{font-size:26px;}
-  }
-
-  /* ---- 印刷 ---- */
-  @media print{
-    header,.fab,.filters,.alert-strip,.head-tools,.summary .donut-wrap{display:none!important;}
-    body{background:#fff;padding:0;}
-    .pcard{break-inside:avoid;box-shadow:none;border:1px solid #ccc;}
-    .list{grid-template-columns:1fr 1fr;}
-    .print-title{display:block!important;font-size:18px;margin:0 0 14px;font-weight:700;}
-  }
-  .print-title{display:none;}
+  /* ---- わたしのさくひん ---- */
+  .myworks{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:55;}
+  .myworks.show{display:flex;}
+  .mw-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:3px solid var(--line);}
+  .mw-title{font-weight:700;font-size:18px;}
 </style>
 </head>
 <body>
 
-<!-- ============ ログイン ============ -->
-<div id="gate">
-  <div class="gate-card">
-    <div class="gate-mark">🗂️</div>
-    <h1>家族の保険台帳</h1>
-    <p>あいことばを入れてください</p>
-    <input type="password" id="gatePw" placeholder="あいことば" autocomplete="off">
-    <button onclick="tryLogin()">ひらく</button>
-    <div class="gate-err" id="gateErr"></div>
+<!-- ============ 入口 ============ -->
+<div id="entry" class="screen active">
+  <div>
+    <h1>🎨 おえかき あつめ</h1>
+    <div class="sub">みんなで かいて、せんせいが あつめる</div>
+  </div>
+  <div id="configWarn" class="warn" style="display:none"></div>
+  <div class="field">
+    <label>あいことば（クラスや はんの なまえ）</label>
+    <input id="roomInput" placeholder="れい：3ねん1くみ" autocomplete="off">
+  </div>
+  <div class="field" id="nameField">
+    <label>なまえ（せいと だけ）</label>
+    <input id="nameInput" placeholder="れい：たろう" autocomplete="off">
+  </div>
+  <div class="role-row">
+    <button class="btn btn-coral" id="goStudent">✏️ せいと</button>
+    <button class="btn btn-blue" id="goTeacher">👩‍🏫 せんせい</button>
   </div>
 </div>
 
-<!-- ============ 本体 ============ -->
-<header>
-  <div class="head-inner">
-    <div class="brand">
-      <div class="brand-mark">🗂️</div>
-      <b>家族の保険台帳</b>
-    </div>
-    <div class="head-tools">
-      <button class="icon-btn" onclick="toggleView()" id="viewBtn" title="表示切替">☰</button>
-      <button class="icon-btn" onclick="window.print()" title="印刷">🖨️</button>
-      <button class="icon-btn" onclick="openSettings()" title="設定">⚙️</button>
+<!-- ============ 生徒：お絵かき ============ -->
+<div id="student" class="screen">
+  <div class="topbar">
+    <button class="mini-btn" id="stuBack">‹ もどる</button>
+    <span class="who" id="stuName">なまえ</span>
+    <span class="room" id="stuRoom"></span>
+    <span class="spacer"></span>
+    <button class="mini-btn" id="myWorksBtn">🖼️ わたしのさくひん</button>
+    <span class="dot" id="stuDot"></span>
+  </div>
+  <div class="stage">
+    <div class="canvas-wrap">
+      <img id="photoLayer" alt="">
+      <canvas id="drawCanvas"></canvas>
+      <div id="moveBadge">✋ したじき いどうちゅう</div>
     </div>
   </div>
-</header>
-
-<div class="wrap">
-  <div class="print-title">家族の保険一覧（<span id="printDate"></span>）</div>
-
-  <!-- サマリー -->
-  <div class="summary">
-    <div class="sum-card">
-      <h3>年間の保険料（合計）</h3>
-      <div class="money-row">
-        <span class="money-big" id="sumYear">¥0</span><span class="money-unit">/年</span>
+  <div class="toolbar">
+    <div class="tool-row">
+      <span class="grp-label">いろ</span>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="tool-row">
+      <span class="grp-label">ふで</span>
+      <div class="brush-group" id="brushGroup">
+        <button class="ico-btn sel" data-brush="pen"><span class="em">✏️</span>ペン</button>
+        <button class="ico-btn" data-brush="marker"><span class="em">🖊️</span>マーカー</button>
+        <button class="ico-btn" data-brush="spray"><span class="em">💨</span>スプレー</button>
       </div>
-      <div class="money-sub">月あたり <span id="sumMonth">¥0</span> ・ <span id="sumCount">0</span>件</div>
+      <span class="grp-label">ふとさ</span>
+      <div class="sizes" id="sizes"></div>
     </div>
-    <div class="sum-card">
-      <h3>掛け捨て / 積立の内訳</h3>
-      <div class="donut-wrap">
-        <svg id="donut" width="88" height="88" viewBox="0 0 88 88"></svg>
-        <div class="donut-legend" id="donutLegend"></div>
+    <div class="tool-row">
+      <div class="tool-group">
+        <button class="ico-btn" id="fillBtn"><span class="em">🪣</span>ぬり</button>
+        <button class="ico-btn" id="eraserBtn"><span class="em">🧽</span>けしゴム</button>
+        <button class="ico-btn" id="undoBtn"><span class="em">↩️</span>もどす</button>
+        <button class="ico-btn" id="clearBtn"><span class="em">🗑️</span>ぜんぶ</button>
       </div>
+      <button class="ico-btn" id="photoBtn"><span class="em">🖼️</span>したじき</button>
     </div>
-  </div>
-
-  <div class="alert-strip none" id="alertStrip"></div>
-
-  <!-- フィルタ -->
-  <div class="filters">
-    <div class="filter-row">
-      <div class="search"><input type="text" id="search" placeholder="会社名・商品名・メモで検索" oninput="render()"></div>
-      <select class="chip" id="typeFilter" onchange="render()">
-        <option value="">種類：すべて</option>
-      </select>
-      <select class="chip" id="sortBy" onchange="render()">
-        <option value="soon">満期が近い順</option>
-        <option value="who">人ごと</option>
-        <option value="type">種類ごと</option>
-        <option value="high">保険料が高い順</option>
-      </select>
+    <div id="photoPanel" class="photo-panel" style="display:none">
+      <button class="mini-btn" id="photoFileBtn">📁 ファイルからえらぶ</button>
+      <input id="photoUrl" type="text" placeholder="がぞうのURLをはりつけ">
+      <button class="mini-btn" id="photoUrlBtn">URLからのせる</button>
+      <span class="opacity-label">うすさ <input type="range" id="photoOpacity" min="0" max="70" value="35"></span>
+      <button class="mini-btn" id="photoMoveBtn">✋ うごかす</button>
+      <button class="mini-btn" id="photoResetBtn">↺ もとの大きさ</button>
+      <button class="mini-btn" id="photoClearBtn">✖ したじきをけす</button>
+      <span class="opacity-label">「うごかす」中は ゆびで いどう・ピンチ（お絵かきは とまります）</span>
     </div>
-    <div class="chips-scroll" id="whoChips"></div>
+    <input type="file" id="photoFile" accept="image/*" style="display:none">
   </div>
-
-  <!-- 一覧 -->
-  <div class="list" id="list"></div>
+  <div class="submit-bar">
+    <button class="btn btn-green" id="submitBtn">📨 ていしゅつ</button>
+  </div>
 </div>
 
-<button class="fab" onclick="openForm()">＋ 保険を追加</button>
+<!-- ============ 先生 ============ -->
+<div id="teacher" class="screen">
+  <div class="topbar">
+    <button class="mini-btn" id="teaBack">‹ もどる</button>
+    <span class="who">せんせい がめん</span>
+    <span class="room" id="teaRoom"></span>
+    <span class="spacer"></span>
+    <span class="dot" id="teaDot"></span>
+  </div>
+  <div class="tabs">
+    <button class="tab sel" id="tabLive">👀 ライブ</button>
+    <button class="tab" id="tabGallery">🖼️ ギャラリー</button>
+  </div>
 
-<!-- ============ 追加/編集モーダル ============ -->
-<div class="modal" id="formModal">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2 id="formTitle">保険を追加</h2>
-      <button class="close-x" onclick="closeModal('formModal')">✕</button>
+  <div id="liveView" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+    <div class="scrollarea"><div id="liveGrid" class="grid"></div></div>
+  </div>
+
+  <div id="galleryView" style="flex:1;display:none;flex-direction:column;min-height:0;">
+    <div class="gallery-tools">
+      <span class="count" id="galCount">0まい</span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="mini-btn" id="saveSelBtn" style="display:none">💾 えらんだ0まいを ほぞん</button>
+      <button class="mini-btn" id="selectBtn">☑️ えらんで ほぞん</button>
+      <button class="mini-btn" id="saveAllBtn">⬇️ ぜんぶ ほぞん</button>
+      <button class="mini-btn" id="presentBtn">📺 みんなにみせる</button>
+      <button class="mini-btn" id="clearAllBtn">🗑️ ぜんぶけす</button>
+      <button class="mini-btn" id="reloadGal">🔄 さいよみこみ</button>
     </div>
+    <div class="scrollarea"><div id="galleryGrid" class="grid"></div></div>
+  </div>
+</div>
 
-    <div class="field">
-      <label>だれの保険？（家族の名前）</label>
-      <input type="text" id="f_who" list="whoList" placeholder="例：父・母・太郎">
-      <datalist id="whoList"></datalist>
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>種類</label>
-        <select id="f_type">
-          <option>生命保険</option><option>医療保険</option><option>がん保険</option>
-          <option>自動車保険</option><option>火災保険</option><option>地震保険</option>
-          <option>学資保険</option><option>個人年金</option><option>傷害保険</option>
-          <option>就業不能・所得補償</option><option>その他</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>掛け捨て / 積立</label>
-        <div class="seg" id="segKake">
-          <button type="button" class="on" data-v="掛け捨て" onclick="pickSeg(this,'kake')">掛け捨て</button>
-          <button type="button" data-v="積立" onclick="pickSeg(this,'kake')">積立（貯蓄型）</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="field"><label>保険会社</label><input type="text" id="f_company" placeholder="例：〇〇生命"></div>
-    <div class="field"><label>商品名</label><input type="text" id="f_name" placeholder="例：終身医療保険プラン"></div>
-    <div class="field"><label>証券番号</label><input type="text" id="f_policy" placeholder="任意"></div>
-
-    <div class="field-row">
-      <div class="field"><label>保険料</label><input type="number" id="f_premium" placeholder="0" inputmode="numeric"></div>
-      <div class="field">
-        <label>支払方法</label>
-        <select id="f_paycycle">
-          <option value="月払">月払い</option><option value="年払">年払い</option>
-          <option value="半年払">半年払い</option><option value="一時払">一時払い（全額前納）</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="field-row">
-      <div class="field"><label>契約日</label>
-        <div class="date-wrap"><span class="date-btn" id="btn_start">日付を選ぶ</span>
-        <input type="date" id="f_start" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_start','btn_start')"></div></div>
-      <div class="field"><label>満期日（あれば）</label>
-        <div class="date-wrap"><span class="date-btn" id="btn_end">日付を選ぶ</span>
-        <input type="date" id="f_end" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_end','btn_end')"></div></div>
-    </div>
-
-    <div class="field-row">
-      <div class="field"><label>払込満了（あれば）</label>
-        <div class="date-wrap"><span class="date-btn" id="btn_paidup">日付を選ぶ</span>
-        <input type="date" id="f_paidup" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_paidup','btn_paidup')"></div></div>
-      <div class="field"><label>次回引き落とし日（あれば）</label>
-        <div class="date-wrap"><span class="date-btn" id="btn_nextpay">日付を選ぶ</span>
-        <input type="date" id="f_nextpay" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
-    </div>
-
-    <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
-    <div class="field"><label>受取人</label><input type="text" id="f_beneficiary" placeholder="任意"></div>
-
-    <div class="fold" id="tsumiFold" style="display:none;">
-      <div class="fold-title">💰 積立の情報</div>
-      <div class="field-row">
-        <div class="field"><label>解約返戻金の見込み</label><input type="number" id="f_surrender" placeholder="0" inputmode="numeric"></div>
-        <div class="field"><label>満期返戻金の見込み</label><input type="number" id="f_maturity" placeholder="0" inputmode="numeric"></div>
-      </div>
-      <div class="field"><label>受け取り予定の時期・メモ</label><input type="text" id="f_returnmemo" placeholder="例：60歳満期・据置可"></div>
-    </div>
-
-    <div class="field"><label>メモ</label><textarea id="f_memo" placeholder="更新の有無、代理店の連絡先、注意点など"></textarea></div>
-
-    <div class="save-bar">
-      <button class="btn-main" onclick="saveItem()">保存する</button>
-      <button class="btn-del" id="delBtn" onclick="deleteItem()" style="display:none;">削除</button>
+<!-- 拡大モーダル -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <img id="modalImg" alt="">
+    <div class="modal-row">
+      <a class="mini-btn" id="modalDl" download>⬇️ ほぞん</a>
+      <button class="mini-btn" id="modalClose">とじる</button>
     </div>
   </div>
 </div>
 
-<!-- ============ 詳細モーダル ============ -->
-<div class="modal" id="detailModal">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2 id="dTitle">詳細</h2>
-      <button class="close-x" onclick="closeModal('detailModal')">✕</button>
-    </div>
-    <div id="detailBody"></div>
-    <input type="file" id="docFile" accept="image/*,application/pdf" style="display:none" onchange="uploadDoc(event)">
-    <div class="save-bar">
-      <button class="btn-main" onclick="editCurrent()">編集する</button>
-    </div>
+<div class="toast" id="toast">📨 ていしゅつ できたよ！</div>
+
+<!-- わたしのさくひん（生徒が自分の提出を見返す） -->
+<div class="myworks" id="myworks">
+  <div class="mw-bar">
+    <span class="mw-title">🖼️ わたしの さくひん</span>
+    <span style="flex:1"></span>
+    <button class="mini-btn" id="mwReload">🔄 さいよみこみ</button>
+    <button class="mini-btn" id="mwClose">とじる</button>
+  </div>
+  <div class="scrollarea"><div class="grid" id="mwGrid"></div></div>
+</div>
+
+<!-- 提示（みんなにみせる）全画面 -->
+<div class="present" id="present">
+  <button class="present-close" id="presentClose">✖ とじる</button>
+  <div class="present-stage"><img id="presentImg" alt=""></div>
+  <div class="present-bar">
+    <button class="present-nav" id="presentPrev">◀</button>
+    <span class="present-name" id="presentName"></span>
+    <span class="present-count" id="presentCount"></span>
+    <button class="present-nav" id="presentNext">▶</button>
   </div>
 </div>
 
-<!-- ============ 設定モーダル ============ -->
-<div class="modal" id="setModal">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2>設定・データ</h2>
-      <button class="close-x" onclick="closeModal('setModal')">✕</button>
-    </div>
-    <div class="set-item">
-      <div class="st">📤 書き出し（バックアップ）</div>
-      <div class="sd">全データを1つのファイルに保存します。家族や別の端末へ渡すときにも使えます。</div>
-      <button class="set-btn" onclick="exportJson()">ファイルに書き出す</button>
-    </div>
-    <div class="set-item">
-      <div class="st">📥 読み込み</div>
-      <div class="sd">書き出したファイルを取り込みます。同じ証券番号のものは上書きされます。</div>
-      <button class="set-btn" onclick="document.getElementById('importFile').click()">ファイルを読み込む</button>
-      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJson(event)">
-    </div>
-    <div class="set-item">
-      <div class="st">🖨️ 印刷用の一覧</div>
-      <div class="sd">今の絞り込みのまま、紙に印刷できます。保険の棚卸しメモに。</div>
-      <button class="set-btn" onclick="closeModal('setModal');setTimeout(()=>window.print(),300)">印刷する</button>
-    </div>
-    <div class="set-item">
-      <div class="st">🔑 あいことばの変更</div>
-      <div class="sd">新しいあいことばにします。家族全員の次回ログインから有効です。</div>
-      <input type="password" id="newPw1" placeholder="新しいあいことば" autocomplete="new-password">
-      <input type="password" id="newPw2" placeholder="もう一度入力" autocomplete="new-password">
-      <button class="set-btn" onclick="changePw()">変更する</button>
-    </div>
-    <div class="set-item">
-      <div class="st">🔒 ログアウト</div>
-      <div class="sd">あいことばの入力画面に戻ります。</div>
-      <button class="set-btn warn" onclick="logout()">ログアウト</button>
-    </div>
-  </div>
-</div>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-<div class="toast" id="toast"></div>
+/* ===================================================================
+   ▼▼▼ ここを じぶんの Supabase の せってい に かきかえてね ▼▼▼
+   （Supabase → Project Settings → API でみつかります）
+=================================================================== */
+const SUPABASE_URL = 'https://glxszbwsvembyygocekp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_9grsvrOlzxrzJqsKvqF1ow_u8SFQsII';
+/* ▲▲▲ かきかえるのは この2ぎょう だけ ▲▲▲ */
 
-<script>
-/* =========================================================
-   設定（ここだけ書き換えます）
-   ========================================================= */
-const CONFIG = {
-  SUPABASE_URL: 'https://glxszbwsvembyygocekp.supabase.co',
-  SUPABASE_ANON: 'sb_publishable_9grsvrOlzxrzJqsKvqF1ow_u8SFQsII',
-  PASSWORD: 'kazoku'   // ← 家族共通のあいことば。好きな言葉に変えてください。
+const configReady = !SUPABASE_URL.includes('あなた') && !SUPABASE_KEY.includes('あなた');
+const supabase = configReady ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+if(!configReady){
+  const w = document.getElementById('configWarn');
+  w.style.display='block';
+  w.innerHTML='⚠️ まだ Supabase の せってい が はいっていません。<br>'+
+    'このファイルの <b>SUPABASE_URL</b> と <b>SUPABASE_KEY</b> を かきかえて ほぞんしてください。';
+}
+
+/* ---------- 端末ID・名前の記憶（この端末だけ） ---------- */
+function deviceId(){
+  let id = localStorage.getItem('oekaki_device');
+  if(!id){ id = (crypto.randomUUID ? crypto.randomUUID() : 'd'+Math.random().toString(36).slice(2)); localStorage.setItem('oekaki_device', id); }
+  return id;
+}
+const DEVICE = deviceId();
+
+/* ---------- 画面きりかえ ---------- */
+const screens = { entry:'entry', student:'student', teacher:'teacher' };
+function show(name){
+  Object.values(screens).forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+  if(typeof setPhotoMove==='function') setPhotoMove(false); // 画面移動時は「うごかす」を必ずオフ
+}
+
+/* ---------- 入口の入力を覚える ---------- */
+const roomInput = document.getElementById('roomInput');
+const nameInput = document.getElementById('nameInput');
+roomInput.value = localStorage.getItem('oekaki_room') || '';
+nameInput.value = localStorage.getItem('oekaki_name') || '';
+
+let state = { room:'', name:'', channel:null, role:null };
+
+function joinChannel(room){
+  // 同じ「あいことば」の端末どうしが つながる部屋
+  const ch = supabase.channel('oekaki-'+room, { config:{ broadcast:{ self:false } } });
+  return ch;
+}
+
+/* =====================================================================
+   生徒：お絵かき
+===================================================================== */
+const canvas = document.getElementById('drawCanvas');
+const ctx = canvas.getContext('2d');
+let strokes = [];          // {color,sizeFrac,erase,pts:[{x,y}...]}（座標は0〜1のわりあい）
+let cur = null;            // 描いている途中のストローク
+let drawing = false;
+let penColor = '#000000';
+let sizeFrac = 0.013;      // 線の太さ＝キャンバス横幅にたいするわりあい
+let tool = 'pen';          // 'pen' | 'eraser' | 'fill'
+let brush = 'pen';         // 'pen' | 'marker' | 'spray'（ペン系のときの書き味）
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+const PALETTE = ['#000000','#e5484d','#ff8a1e','#f5c518','#37b24d','#1c7ed6','#7048e8','#f06595','#8b5e34','#4dabf7'];
+const SIZES = [{f:0.003,d:6},{f:0.007,d:10},{f:0.013,d:16},{f:0.026,d:24},{f:0.045,d:34}];
+
+// 色パレット描画
+const swEl = document.getElementById('swatches');
+PALETTE.forEach((c,i)=>{
+  const s=document.createElement('div'); s.className='swatch'+(i===0?' sel':'');
+  s.style.background=c; swEl.appendChild(s);
+  s.onclick=()=>{ penColor=c; setTool('pen');
+    swEl.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); };
+});
+// 太さ
+const szEl = document.getElementById('sizes');
+SIZES.forEach((s,i)=>{
+  const b=document.createElement('div'); b.className='size-dot'+(i===2?' sel':'');
+  const dot=document.createElement('i'); dot.style.width=s.d+'px'; dot.style.height=s.d+'px';
+  b.appendChild(dot); szEl.appendChild(b);
+  b.onclick=()=>{ sizeFrac=s.f; szEl.querySelectorAll('.size-dot').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); };
+});
+function setTool(t){
+  tool=t;
+  document.getElementById('fillBtn').classList.toggle('sel',t==='fill');
+  document.getElementById('eraserBtn').classList.toggle('sel',t==='eraser');
+  document.querySelectorAll('#brushGroup [data-brush]').forEach(b=>b.classList.toggle('sel', t==='pen' && b.dataset.brush===brush));
+}
+document.querySelectorAll('#brushGroup [data-brush]').forEach(btn=>{
+  btn.onclick=()=>{ brush=btn.dataset.brush; setTool('pen'); };
+});
+document.getElementById('fillBtn').onclick=()=>setTool(tool==='fill'?'pen':'fill');
+document.getElementById('eraserBtn').onclick=()=>setTool(tool==='eraser'?'pen':'eraser');
+document.getElementById('undoBtn').onclick=()=>{ strokes.pop(); redraw(); };
+document.getElementById('clearBtn').onclick=()=>{ strokes=[]; redraw(); sendClear(); };
+setTool('pen');
+
+// ---- したじき写真（なぞるための下じき。提出には入りません） ----
+const photoLayer=document.getElementById('photoLayer');
+const photoPanel=document.getElementById('photoPanel');
+const photoFile=document.getElementById('photoFile');
+const photoOpacity=document.getElementById('photoOpacity');
+document.getElementById('photoBtn').onclick=()=>{ photoPanel.style.display = (photoPanel.style.display==='none'?'flex':'none'); };
+document.getElementById('photoFileBtn').onclick=()=>photoFile.click();
+photoFile.onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>setPhoto(r.result); r.readAsDataURL(f); };
+document.getElementById('photoUrlBtn').onclick=()=>{ const u=document.getElementById('photoUrl').value.trim(); if(u)setPhoto(u); };
+document.getElementById('photoClearBtn').onclick=()=>{ photoLayer.removeAttribute('src'); photoLayer.style.display='none'; resetPhotoTransform(); setPhotoMove(false); };
+document.getElementById('photoResetBtn').onclick=()=>resetPhotoTransform();
+const photoMoveBtn=document.getElementById('photoMoveBtn');
+const canvasWrap=document.querySelector('.canvas-wrap');
+function setPhotoMove(on){
+  photoMoveMode=on;
+  photoMoveBtn.classList.toggle('on',on);
+  canvasWrap.classList.toggle('moving',on);
+  activePtrs.clear(); gesture=null;         // 切りかえ時は指の情報をリセット
+}
+photoMoveBtn.onclick=()=>{
+  if(!photoMoveMode && !photoActive()){ alert('さきに 下じきを のせてください。'); return; }
+  setPhotoMove(!photoMoveMode);
+};
+photoOpacity.oninput=function(){ photoLayer.style.opacity=this.value/100; };
+function setPhoto(src){
+  photoLayer.onerror=()=>{ photoLayer.style.display='none'; alert('このがぞうは よみこめませんでした。\nべつのがぞうか、「ファイルからえらぶ」で ためしてください。'); };
+  photoLayer.style.opacity=photoOpacity.value/100;
+  resetPhotoTransform();                 // 新しい下敷きは 元の大きさから
+  photoLayer.src=src; photoLayer.style.display='block';
+}
+
+// ---- わたしのさくひん（自分が提出した絵を見返す） ----
+const myworks=document.getElementById('myworks');
+const mwGrid=document.getElementById('mwGrid');
+async function openMyWorks(){
+  if(!supabase)return;
+  myworks.classList.add('show');
+  mwGrid.innerHTML='<div class="empty">よみこみちゅう…</div>';
+  const {data,error}=await supabase.from('drawings').select('id,image,created_at')
+    .eq('room',state.room).eq('device_id',DEVICE).order('created_at',{ascending:false});
+  if(error){ mwGrid.innerHTML='<div class="empty">よみこめませんでした。<br>'+escapeHtml(error.message)+'</div>'; return; }
+  if(!data||!data.length){ mwGrid.innerHTML='<div class="empty">まだ ていしゅつ した えが ありません。</div>'; return; }
+  mwGrid.innerHTML='';
+  data.forEach((d,i)=>{
+    const wrap=document.createElement('div'); wrap.className='tile';
+    const th=document.createElement('div'); th.className='thumb';
+    const img=document.createElement('img'); img.src=d.image; img.alt='';
+    img.onclick=()=>openModal(d.image,'わたしのさくひん');
+    th.appendChild(img);
+    const nm=document.createElement('div'); nm.className='name'; nm.textContent=(data.length-i)+'まいめ';
+    wrap.appendChild(th); wrap.appendChild(nm); mwGrid.appendChild(wrap);
+  });
+}
+document.getElementById('myWorksBtn').onclick=openMyWorks;
+document.getElementById('mwReload').onclick=openMyWorks;
+document.getElementById('mwClose').onclick=()=>myworks.classList.remove('show');
+
+// キャンバスの実ピクセル設定（くっきり表示）
+function fitCanvas(){
+  const r = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio||1;
+  canvas.width = Math.round(r.width*dpr);
+  canvas.height = Math.round(r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  redraw();
+}
+function cssSize(){ const r=canvas.getBoundingClientRect(); return {w:r.width,h:r.height}; }
+
+// 描画エリアを、残りスペースに合わせて4:3でぴったり収める（ツールに重ならないように）
+function layoutCanvas(){
+  const stage=document.querySelector('#student .stage');
+  if(!stage)return;
+  const availW=stage.clientWidth-16, availH=stage.clientHeight-16;
+  if(availW<=0||availH<=0)return;
+  let w=availW, h=w*3/4;
+  if(h>availH){ h=availH; w=h*4/3; }
+  const wrap=document.querySelector('.canvas-wrap');
+  wrap.style.width=Math.max(40,Math.floor(w))+'px';
+  wrap.style.height=Math.max(30,Math.floor(h))+'px';
+  fitCanvas();
+}
+
+// わりあい座標 → 画面ピクセル（ペン・マーカー・スプレー・消しゴム）
+function sprayStamp(c, w, h, st, p, idx){
+  c.fillStyle=st.color;
+  const r=st.sizeFrac*w*2.2;                      // ちらばる はんい
+  const dots=Math.max(8, Math.round(st.sizeFrac*w*1.3));
+  const rng=mulberry32(((st.seed||1)+idx*9973)>>>0);
+  for(let k=0;k<dots;k++){
+    const ang=rng()*6.283185, rad=Math.sqrt(rng())*r;
+    const x=p.x*w+Math.cos(ang)*rad, y=p.y*h+Math.sin(ang)*rad;
+    c.globalAlpha=0.35+rng()*0.5;
+    c.beginPath(); c.arc(x,y,Math.max(0.7,r*0.07),0,6.283185); c.fill();
+  }
+  c.globalAlpha=1;
+}
+function drawStrokeOn(c, w, h, st, transparentBg){
+  c.save(); c.lineCap='round'; c.lineJoin='round';
+  if(st.erase){
+    if(transparentBg){ c.globalCompositeOperation='destination-out'; c.strokeStyle='rgba(0,0,0,1)'; }
+    else { c.strokeStyle='#ffffff'; }
+    c.lineWidth=st.sizeFrac*w;
+    c.beginPath(); st.pts.forEach((p,i)=>{const x=p.x*w,y=p.y*h; i?c.lineTo(x,y):c.moveTo(x,y);});
+    if(st.pts.length===1){const p=st.pts[0]; c.lineTo(p.x*w+0.1,p.y*h+0.1);}
+    c.stroke(); c.restore(); return;
+  }
+  if(st.brush==='spray'){
+    st.pts.forEach((p,i)=>sprayStamp(c,w,h,st,p,i));
+    c.restore(); return;
+  }
+  if(st.brush==='marker'){ c.globalAlpha=0.4; c.lineWidth=st.sizeFrac*w*1.6; }
+  else { c.lineWidth=st.sizeFrac*w; }
+  c.strokeStyle=st.color;
+  c.beginPath(); st.pts.forEach((p,i)=>{const x=p.x*w,y=p.y*h; i?c.lineTo(x,y):c.moveTo(x,y);});
+  if(st.pts.length===1){const p=st.pts[0]; c.lineTo(p.x*w+0.1,p.y*h+0.1);}
+  c.stroke(); c.restore();
+}
+
+// 塗りつぶし（バケツ）：押した点とつながった同じ色を、選んだ色でぬる
+function hexToRgb(hex){ hex=hex.replace('#',''); if(hex.length===3)hex=hex.split('').map(c=>c+c).join('');
+  const n=parseInt(hex,16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function floodFill(c, W, H, sx, sy, hex){
+  sx=Math.round(sx); sy=Math.round(sy);
+  if(sx<0||sy<0||sx>=W||sy>=H)return;
+  const img=c.getImageData(0,0,W,H);
+  const data=new Uint32Array(img.data.buffer);
+  const start=sy*W+sx;
+  const target=data[start];
+  const [fr,fg,fb]=hexToRgb(hex);
+  const fill=(((255<<24)|(fb<<16)|(fg<<8)|fr)>>>0);     // ABGR (little-endian, unsigned)
+  if(target===fill)return;
+  const tr=target&255, tg=(target>>8)&255, tb=(target>>16)&255, ta=(target>>24)&255;
+  const tol2=40*40;
+  const near=p=>{ const r=p&255,g=(p>>8)&255,b=(p>>16)&255,a=(p>>24)&255;
+    const dr=r-tr,dg=g-tg,db=b-tb,da=a-ta; return dr*dr+dg*dg+db*db+da*da<=tol2; };
+  const seen=new Uint8Array(W*H);    // BFSで見た
+  const filled=new Uint8Array(W*H);  // 実際に塗った
+  const stack=[start];
+  while(stack.length){
+    const p=stack.pop();
+    if(seen[p])continue; seen[p]=1;
+    if(!near(data[p]))continue;
+    data[p]=fill; filled[p]=1;
+    const x=p%W;
+    if(x>0)stack.push(p-1);
+    if(x<W-1)stack.push(p+1);
+    if(p-W>=0)stack.push(p-W);
+    if(p+W<W*H)stack.push(p+W);
+  }
+  // 線のフチ（ぼかし＝半透明部分）まで数px広げて、白いふちを消す。
+  // 不透明な線の中心（alpha≥250）では止まるので、はみ出しません。
+  let frontier=[];
+  for(let p=0;p<W*H;p++){
+    if(!filled[p])continue;
+    const x=p%W;
+    if(x>0   && !filled[p-1] && ((data[p-1]>>>24)&255)<250) frontier.push(p-1);
+    if(x<W-1 && !filled[p+1] && ((data[p+1]>>>24)&255)<250) frontier.push(p+1);
+    if(p>=W  && !filled[p-W] && ((data[p-W]>>>24)&255)<250) frontier.push(p-W);
+    if(p+W<W*H && !filled[p+W] && ((data[p+W]>>>24)&255)<250) frontier.push(p+W);
+  }
+  let depth=0;
+  while(frontier.length && depth<3){
+    const next=[];
+    for(const q of frontier){
+      if(filled[q])continue; filled[q]=1; data[q]=fill;
+      const x=q%W;
+      if(x>0   && !filled[q-1] && ((data[q-1]>>>24)&255)<250) next.push(q-1);
+      if(x<W-1 && !filled[q+1] && ((data[q+1]>>>24)&255)<250) next.push(q+1);
+      if(q>=W  && !filled[q-W] && ((data[q-W]>>>24)&255)<250) next.push(q-W);
+      if(q+W<W*H && !filled[q+W] && ((data[q+W]>>>24)&255)<250) next.push(q+W);
+    }
+    frontier=next; depth++;
+  }
+  c.putImageData(img,0,0);
+}
+
+// 線と塗りを記録した順に再生する（もどす・提出・再描画で共通）
+function replay(c, cssW, cssH, devW, devH, transparentBg){
+  strokes.forEach(op=>{
+    if(op.fill){ floodFill(c, devW, devH, op.x*devW, op.y*devH, op.color); }
+    else { drawStrokeOn(c, cssW, cssH, op, transparentBg); }
+  });
+}
+function redraw(){
+  const {w,h}=cssSize();
+  ctx.clearRect(0,0,w,h);                 // 透明にする（うしろの したじき写真が見える）
+  replay(ctx, w, h, canvas.width, canvas.height, true);
+}
+
+// ポインター（指・マウス共通）
+function pos(e){
+  const r=canvas.getBoundingClientRect();
+  return { x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height };
+}
+let segBuf=[]; // ライブ送信用にためる線分
+let markerBase=null; // マーカーを1本描きするための「描き始めの状態」
+// ---- 下敷き写真の「うごかす」モード（ボタンON中だけ 指で いどう・ピンチ）----
+const activePtrs=new Map();   // いま触れている指
+let gesture=null;             // いま進行中の いどう/ピンチ の開始情報
+let photoMoveMode=false;      // 「うごかす」ボタンON中か
+let photoScale=1, photoTX=0, photoTY=0;
+function applyPhotoTransform(){ photoLayer.style.transform=`translate(${photoTX}px,${photoTY}px) scale(${photoScale})`; }
+function resetPhotoTransform(){ photoScale=1; photoTX=0; photoTY=0; applyPhotoTransform(); }
+function ptrDist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+function ptrMid(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2}; }
+function photoActive(){ return photoLayer.style.display!=='none' && !!photoLayer.getAttribute('src'); }
+// 指の増減に合わせて 開始位置をとり直す（1本＝いどう / 2本＝ピンチ）
+function beginPhotoGesture(){
+  const pv=[...activePtrs.values()];
+  if(pv.length>=2){ gesture={mode:'pinch',d0:ptrDist(pv[0],pv[1]),m0:ptrMid(pv[0],pv[1]),s0:photoScale,tx0:photoTX,ty0:photoTY}; }
+  else if(pv.length===1){ gesture={mode:'pan',p0:{x:pv[0].x,y:pv[0].y},tx0:photoTX,ty0:photoTY}; }
+  else gesture=null;
+}
+canvas.addEventListener('pointerdown',e=>{
+  if(state.role!=='student')return;
+
+  // 「うごかす」モード中は お絵かきせず、下敷きを いどう・ピンチ
+  if(photoMoveMode && photoActive()){
+    activePtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    canvas.setPointerCapture(e.pointerId);
+    beginPhotoGesture();
+    return;
+  }
+
+  const p=pos(e);
+  if(tool==='fill'){                       // バケツ：その場でぬる＋記録＋ライブ送信
+    const op={fill:true,x:p.x,y:p.y,color:penColor};
+    strokes.push(op);
+    floodFill(ctx,canvas.width,canvas.height,p.x*canvas.width,p.y*canvas.height,penColor);
+    sendFill(p);
+    return;
+  }
+  drawing=true; canvas.setPointerCapture(e.pointerId);
+  cur={color:penColor,sizeFrac,erase:(tool==='eraser'),brush:(tool==='eraser'?'pen':brush),seed:((Math.random()*1e9)>>>0),pts:[p]};
+  strokes.push(cur);
+  if(cur.brush==='marker' && !cur.erase){
+    markerBase=ctx.getImageData(0,0,canvas.width,canvas.height); // 描き始めの状態を記録
+    redrawCurrentMarker();
+  } else {
+    drawDab(p);
+  }
+});
+canvas.addEventListener('pointermove',e=>{
+  // 「うごかす」モード中：下敷きを いどう・ピンチ
+  if(photoMoveMode){
+    if(activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(!gesture) return;
+    const pv=[...activePtrs.values()];
+    if(gesture.mode==='pinch' && pv.length>=2){
+      const d=ptrDist(pv[0],pv[1]), m=ptrMid(pv[0],pv[1]);
+      photoScale=Math.max(0.2,Math.min(8, gesture.s0*(d/gesture.d0)));
+      photoTX=gesture.tx0+(m.x-gesture.m0.x);
+      photoTY=gesture.ty0+(m.y-gesture.m0.y);
+    } else if(gesture.mode==='pan' && pv.length>=1){
+      photoTX=gesture.tx0+(pv[0].x-gesture.p0.x);
+      photoTY=gesture.ty0+(pv[0].y-gesture.p0.y);
+    }
+    applyPhotoTransform();
+    return;
+  }
+  if(!drawing)return;
+  const p=pos(e); const prev=cur.pts[cur.pts.length-1];
+  const idx=cur.pts.length;            // この点の番号
+  cur.pts.push(p);
+  const {w,h}=cssSize();
+  if(cur.brush==='marker' && !cur.erase){
+    redrawCurrentMarker();
+  } else {
+    drawSeg(ctx,w,h,cur,prev,p,idx);
+  }
+  segBuf.push({c:cur.color,s:cur.sizeFrac,e:cur.erase,b:cur.brush,seed:cur.seed,i:idx,x1:prev.x,y1:prev.y,x2:p.x,y2:p.y});
+});
+function endStroke(e){
+  // 「うごかす」モード中：指を はなしたら 残りの指で 開始位置をとり直す
+  if(photoMoveMode){
+    if(e && activePtrs.has(e.pointerId)) activePtrs.delete(e.pointerId);
+    beginPhotoGesture();
+    return;
+  }
+  if(!drawing)return; drawing=false; markerBase=null; flushSegs();
+}
+canvas.addEventListener('pointerup',endStroke);
+canvas.addEventListener('pointercancel',endStroke);
+canvas.addEventListener('pointerleave',endStroke);
+// 1区間だけ描き足す（毎回全部描くと重いから）
+function drawSeg(c,w,h,st,prev,p,idx){
+  c.save(); c.lineCap='round'; c.lineJoin='round';
+  if(st.erase){ c.globalCompositeOperation='destination-out'; c.strokeStyle='rgba(0,0,0,1)'; c.lineWidth=st.sizeFrac*w;
+    c.beginPath(); c.moveTo(prev.x*w,prev.y*h); c.lineTo(p.x*w,p.y*h); c.stroke(); c.restore(); return; }
+  if(st.brush==='spray'){ sprayStamp(c,w,h,st,p,idx); c.restore(); return; }
+  if(st.brush==='marker'){ c.globalAlpha=0.4; c.lineWidth=st.sizeFrac*w*1.6; }
+  else c.lineWidth=st.sizeFrac*w;
+  c.strokeStyle=st.color;
+  c.beginPath(); c.moveTo(prev.x*w,prev.y*h); c.lineTo(p.x*w,p.y*h); c.stroke(); c.restore();
+}
+function drawDab(p){ const {w,h}=cssSize();
+  if(cur.brush==='spray'){ ctx.save(); sprayStamp(ctx,w,h,cur,p,0); ctx.restore(); return; }
+  ctx.save();
+  if(cur.erase){ ctx.globalCompositeOperation='destination-out'; ctx.fillStyle='rgba(0,0,0,1)'; }
+  else { if(cur.brush==='marker')ctx.globalAlpha=0.4; ctx.fillStyle=cur.color; }
+  const r=(cur.sizeFrac*w)/2*(cur.brush==='marker'?1.6:1);
+  ctx.beginPath(); ctx.arc(p.x*w,p.y*h,r,0,6.283185); ctx.fill(); ctx.restore(); }
+
+// マーカー：描き始めの状態にもどしてから、今の線を「1本の連続線」として半透明で描く。
+// 区間ごとに重ね描きしないので、つなぎ目が濃くならず点々にならない。
+function redrawCurrentMarker(){
+  if(!markerBase)return;
+  ctx.putImageData(markerBase,0,0);           // 描き始めの状態にもどす
+  const {w,h}=cssSize();
+  ctx.save();
+  ctx.globalAlpha=0.4; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.strokeStyle=cur.color; ctx.lineWidth=cur.sizeFrac*w*1.6;
+  ctx.beginPath();
+  cur.pts.forEach((pt,i)=>{ const x=pt.x*w,y=pt.y*h; i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+  if(cur.pts.length===1){ const pt=cur.pts[0]; ctx.lineTo(pt.x*w+0.01,pt.y*h+0.01); } // 点だけでも丸く出す
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ライブ送信（70msごとにまとめて）
+setInterval(flushSegs,70);
+function flushSegs(){
+  if(!state.channel || segBuf.length===0)return;
+  const segs=segBuf; segBuf=[];
+  state.channel.send({type:'broadcast',event:'draw',payload:{id:DEVICE,name:state.name,segs}});
+}
+function sendFill(p){ if(state.channel) state.channel.send({type:'broadcast',event:'fill',payload:{id:DEVICE,name:state.name,x:p.x,y:p.y,color:penColor}}); }
+function sendClear(){ if(state.channel) state.channel.send({type:'broadcast',event:'clear',payload:{id:DEVICE}}); }
+
+// 提出：完成画像をつくって保存
+const submitBtn=document.getElementById('submitBtn');
+submitBtn.onclick=async ()=>{
+  if(!supabase)return;
+  submitBtn.disabled=true; submitBtn.textContent='おくっています…';
+  const off=document.createElement('canvas'); off.width=1200; off.height=900;
+  const oc=off.getContext('2d');
+  replay(oc,1200,900,1200,900,true);              // 透明な紙の上に（halo対策のため）
+  const flat=document.createElement('canvas'); flat.width=1200; flat.height=900;
+  const fc=flat.getContext('2d'); fc.fillStyle='#ffffff'; fc.fillRect(0,0,1200,900);
+  fc.drawImage(off,0,0);                           // 白でうしろをうめて1枚に
+  const image=flat.toDataURL('image/png');
+  try{
+    // 提出するたびに別の1枚として残す（積み重ね）
+    const {error}=await supabase.from('drawings')
+      .insert({room:state.room,device_id:DEVICE,name:state.name,image});
+    if(error)throw error;
+    if(state.channel) state.channel.send({type:'broadcast',event:'submitted',payload:{id:DEVICE,name:state.name}});
+    showToast();
+  }catch(err){
+    alert('ていしゅつ できませんでした。\nせんせいに みせてね。\n('+(err.message||err)+')');
+  }finally{
+    submitBtn.disabled=false; submitBtn.textContent='📨 ていしゅつ';
+  }
+};
+const toast=document.getElementById('toast');
+function showToast(){ toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1800); }
+
+/* =====================================================================
+   先生：ライブ＆ギャラリー
+===================================================================== */
+const liveGrid=document.getElementById('liveGrid');
+const galleryGrid=document.getElementById('galleryGrid');
+const tiles={}; // id → {wrap,canvas,ctx,submitted}
+
+function ensureTile(id,name){
+  if(tiles[id])return tiles[id];
+  const wrap=document.createElement('div'); wrap.className='tile';
+  const th=document.createElement('div'); th.className='thumb';
+  const cv=document.createElement('canvas'); cv.width=320; cv.height=240;
+  const c=cv.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,320,240);
+  th.appendChild(cv);
+  const nm=document.createElement('div'); nm.className='name';
+  nm.innerHTML='<span class="dot on"></span><span>'+escapeHtml(name||'だれか')+'</span>';
+  wrap.appendChild(th); wrap.appendChild(nm);
+  liveGrid.appendChild(wrap);
+  const t = tiles[id]={wrap,canvas:cv,ctx:c,nameEl:nm,submitted:false};
+  refreshLiveEmpty();
+  return t;
+}
+function refreshLiveEmpty(){
+  if(Object.keys(tiles).length===0 && !liveGrid.querySelector('.empty')){
+    liveGrid.innerHTML='<div class="empty">まだ だれも かいていません。<br>せいとが かきはじめると ここに でます。</div>';
+  }else if(Object.keys(tiles).length>0){
+    const e=liveGrid.querySelector('.empty'); if(e)e.remove();
+  }
+}
+function teacherSpray(c,s){
+  const W=320,H=240; c.fillStyle=s.c;
+  const r=s.s*W*2.2, dots=Math.max(8,Math.round(s.s*W*1.3));
+  const rng=mulberry32(((s.seed||1)+(s.i||0)*9973)>>>0);
+  for(let k=0;k<dots;k++){ const ang=rng()*6.283185, rad=Math.sqrt(rng())*r;
+    const x=s.x2*W+Math.cos(ang)*rad, y=s.y2*H+Math.sin(ang)*rad;
+    c.globalAlpha=0.35+rng()*0.5; c.beginPath(); c.arc(x,y,Math.max(0.6,r*0.07),0,6.283185); c.fill(); }
+  c.globalAlpha=1;
+}
+function handleDraw(p){
+  const t=ensureTile(p.id,p.name);
+  if(p.name && t.nameEl) t.nameEl.querySelector('span:last-child').textContent=p.name;
+  const c=t.ctx;
+  p.segs.forEach(s=>{
+    c.save(); c.lineCap='round'; c.lineJoin='round';
+    if(s.e){ c.strokeStyle='#ffffff'; c.lineWidth=s.s*320;
+      c.beginPath(); c.moveTo(s.x1*320,s.y1*240); c.lineTo(s.x2*320,s.y2*240); c.stroke(); c.restore(); return; }
+    if(s.b==='spray'){ teacherSpray(c,s); c.restore(); return; }
+    if(s.b==='marker'){ c.globalAlpha=0.4; c.lineWidth=s.s*320*1.6; }
+    else c.lineWidth=s.s*320;
+    c.strokeStyle=s.c;
+    c.beginPath(); c.moveTo(s.x1*320,s.y1*240); c.lineTo(s.x2*320,s.y2*240); c.stroke(); c.restore();
+  });
+}
+function handleClear(p){ const t=tiles[p.id]; if(t){ t.ctx.fillStyle='#fff'; t.ctx.fillRect(0,0,320,240); } }
+function handleFill(p){ const t=ensureTile(p.id,p.name); floodFill(t.ctx,320,240,p.x*320,p.y*240,p.color); }
+function handleSubmitted(p){
+  const t=ensureTile(p.id,p.name);
+  if(!t.submitted){ t.submitted=true; const b=document.createElement('div'); b.className='badge'; b.textContent='ていしゅつ ✓'; t.wrap.appendChild(b); }
+  if(galleryVisible) loadGallery();
+}
+
+// ギャラリー読み込み
+let galleryVisible=false;
+let galleryData=[];
+async function loadGallery(){
+  if(!supabase)return;
+  const {data,error}=await supabase.from('drawings').select('id,name,image,device_id,created_at')
+    .eq('room',state.room).order('created_at',{ascending:false});
+  if(error){ galleryGrid.innerHTML='<div class="empty">よみこみ できませんでした。<br>'+escapeHtml(error.message)+'</div>'; return; }
+  galleryData=data||[];
+  document.getElementById('galCount').textContent=galleryData.length+'まい';
+  if(galleryData.length===0){ galleryGrid.innerHTML='<div class="empty">まだ ていしゅつ が ありません。</div>'; return; }
+  galleryGrid.innerHTML='';
+  galleryData.forEach(d=>{
+    const wrap=document.createElement('div'); wrap.className='tile';
+    if(selectMode && selected.has(d.id)) wrap.classList.add('selected');
+    const th=document.createElement('div'); th.className='thumb';
+    const img=document.createElement('img'); img.src=d.image; img.alt=d.name||'';
+    img.onclick=()=>{ if(selectMode){ toggleSelect(d,wrap); } else { openModal(d.image,d.name); } };
+    th.appendChild(img);
+    const del=document.createElement('button'); del.className='del'; del.textContent='🗑️ けす';
+    del.onclick=e=>{ e.stopPropagation(); deleteOne(d); };
+    const nm=document.createElement('div'); nm.className='name'; nm.textContent=d.name||'なまえなし';
+    wrap.appendChild(th); wrap.appendChild(del); wrap.appendChild(nm); galleryGrid.appendChild(wrap);
+  });
+}
+document.getElementById('reloadGal').onclick=loadGallery;
+
+// ===== ギャラリーの保存（パソコン向け：ZIPでまとめてダウンロード）=====
+let selectMode=false;
+const selected=new Set();            // 選んだ絵のid
+const selectBtn=document.getElementById('selectBtn');
+const saveSelBtn=document.getElementById('saveSelBtn');
+const saveAllBtn=document.getElementById('saveAllBtn');
+
+function toggleSelect(d,wrap){
+  if(selected.has(d.id)){ selected.delete(d.id); wrap.classList.remove('selected'); }
+  else { selected.add(d.id); wrap.classList.add('selected'); }
+  updateSaveSelBtn();
+}
+function updateSaveSelBtn(){ saveSelBtn.textContent='💾 えらんだ'+selected.size+'まいを ほぞん'; }
+selectBtn.onclick=()=>{
+  selectMode=!selectMode;
+  selected.clear();
+  galleryGrid.classList.toggle('selecting',selectMode);
+  galleryGrid.querySelectorAll('.tile.selected').forEach(t=>t.classList.remove('selected'));
+  selectBtn.textContent = selectMode ? '✖ せんたく やめる' : '☑️ えらんで ほぞん';
+  saveSelBtn.style.display = selectMode ? '' : 'none';
+  updateSaveSelBtn();
+};
+saveSelBtn.onclick=()=>{
+  const list=galleryData.filter(d=>selected.has(d.id));
+  if(!list.length){ alert('ほぞんする えを えらんでください。\n（えを タップすると えらべます）'); return; }
+  saveAsZip(list, saveSelBtn);
+};
+saveAllBtn.onclick=()=>{
+  if(!galleryData.length){ alert('ほぞんする えが ありません。'); return; }
+  saveAsZip(galleryData, saveAllBtn);
 };
 
-/* 家族ごとの色（自動割り当て・彩度控えめ） */
-const WHO_COLORS = ['#2F6F6A','#3A5A8C','#8C5A7A','#5E8C4A','#B08A2E','#B4453C','#4A7C8C','#7A5AA0'];
-const SOON_DAYS = 90; // 満期・引き落としが何日以内なら「近い」とするか
-
-/* =========================================================
-   Supabase 接続
-   ========================================================= */
-let sb = null, useCloud = false;
-try{
-  if(CONFIG.SUPABASE_URL.startsWith('http') && CONFIG.SUPABASE_ANON.length > 20){
-    sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON);
-    useCloud = true;
-  }
-}catch(e){ console.warn('Supabase未設定'); }
-
-let items = [];      // 保険データ
-let viewMode = 'card';
-let curId = null;    // 編集/詳細中のid
-let whoFilter = '';
-
-/* =========================================================
-   ログイン
-   ========================================================= */
-let savedHash=null;
-async function sha256(s){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+// JSZip（ZIP作成ライブラリ）を必要になったときだけ読み込む
+function ensureJSZip(){
+  return new Promise((res,rej)=>{
+    if(window.JSZip) return res(window.JSZip);
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload=()=>res(window.JSZip);
+    s.onerror=()=>rej(new Error('load failed'));
+    document.head.appendChild(s);
+  });
 }
-async function loadConfig(){
-  if(!useCloud) return;
+async function saveAsZip(list, btn){
+  const label=btn.textContent;
+  btn.disabled=true; btn.textContent='ほぞん じゅんびちゅう…';
   try{
-    const {data}=await sb.from('hoken_config').select('pw_hash').eq('id',1).maybeSingle();
-    if(data && data.pw_hash) savedHash=data.pw_hash;
-  }catch(e){}
-}
-async function tryLogin(){
-  const pw=document.getElementById('gatePw').value;
-  const ok = savedHash ? (await sha256(pw))===savedHash : (pw===CONFIG.PASSWORD);
-  if(ok){
-    sessionStorage.setItem('hoken_ok','1');
-    document.getElementById('gate').style.display='none';
-    loadData();
-  }else{
-    document.getElementById('gateErr').textContent='あいことばが違います';
-  }
-}
-document.getElementById('gatePw').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
-function logout(){ sessionStorage.removeItem('hoken_ok'); location.reload(); }
-async function changePw(){
-  const a=document.getElementById('newPw1').value, b=document.getElementById('newPw2').value;
-  if(a.length<2){ toast('あいことばが短すぎます'); return; }
-  if(a!==b){ toast('2つのあいことばが違います'); return; }
-  if(!useCloud){ toast('クラウド未設定では変更できません'); return; }
-  const hash=await sha256(a);
-  const {error}=await sb.from('hoken_config').upsert({id:1,pw_hash:hash},{onConflict:'id'});
-  if(error){ toast('変更エラー：'+error.message); return; }
-  savedHash=hash;
-  document.getElementById('newPw1').value=''; document.getElementById('newPw2').value='';
-  toast('あいことばを変更しました');
-}
-loadConfig();
-if(sessionStorage.getItem('hoken_ok')==='1'){
-  document.getElementById('gate').style.display='none';
-}
-
-/* =========================================================
-   データ読み込み・保存
-   ========================================================= */
-async function loadData(){
-  if(useCloud){
-    const {data,error} = await sb.from('hoken').select('*').order('created_at',{ascending:true});
-    if(error){ toast('読み込みエラー：'+error.message); items=[]; }
-    else items = data || [];
-  }else{
-    // クラウド未設定のときは端末内に一時保存（お試し用）
-    try{ items = JSON.parse(localStorage.getItem('hoken_local')||'[]'); }catch(e){ items=[]; }
-  }
-  buildFilters();
-  render();
-}
-
-async function upsertRow(row){
-  if(useCloud){
-    const {data,error} = await sb.from('hoken').upsert(row,{onConflict:'id'}).select();
-    if(error){ toast('保存エラー：'+error.message); return null; }
-    return data[0];
-  }else{
-    const i = items.findIndex(x=>x.id===row.id);
-    if(i>=0) items[i]=row; else items.push(row);
-    localStorage.setItem('hoken_local',JSON.stringify(items));
-    return row;
-  }
-}
-
-async function deleteRow(id){
-  if(useCloud){
-    const {error} = await sb.from('hoken').delete().eq('id',id);
-    if(error){ toast('削除エラー：'+error.message); return false; }
-  }else{
-    items = items.filter(x=>x.id!==id);
-    localStorage.setItem('hoken_local',JSON.stringify(items));
-  }
-  return true;
-}
-
-/* =========================================================
-   金額計算
-   ========================================================= */
-function toYearly(premium, cycle){
-  const p = Number(premium)||0;
-  if(cycle==='月払') return p*12;
-  if(cycle==='半年払') return p*2;
-  if(cycle==='年払') return p;
-  if(cycle==='一時払') return 0; // 前納済みは年額に含めない
-  return p;
-}
-function yen(n){ return '¥'+(Math.round(Number(n)||0)).toLocaleString('ja-JP'); }
-
-/* 満期・引き落としが近いか（日数） */
-function daysUntil(dateStr){
-  if(!dateStr) return null;
-  const d = new Date(dateStr+'T00:00:00');
-  const now = new Date(); now.setHours(0,0,0,0);
-  return Math.round((d-now)/86400000);
-}
-
-/* =========================================================
-   フィルタUI構築
-   ========================================================= */
-function buildFilters(){
-  // 種類プルダウン
-  const types = [...new Set(items.map(x=>x.type).filter(Boolean))];
-  const sel = document.getElementById('typeFilter');
-  sel.innerHTML = '<option value="">種類：すべて</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');
-  // 人チップ
-  const whos = [...new Set(items.map(x=>x.who).filter(Boolean))];
-  const box = document.getElementById('whoChips');
-  let html = `<button class="chip ${whoFilter===''?'on':''}" onclick="setWho('')">全員</button>`;
-  whos.forEach(w=>{
-    html += `<button class="chip ${whoFilter===w?'on':''}" onclick="setWho('${w}')">
-      <span class="lg-dot" style="background:${colorFor(w)}"></span>${w}</button>`;
-  });
-  box.innerHTML = html;
-  // datalist（入力補助）
-  document.getElementById('whoList').innerHTML = whos.map(w=>`<option value="${w}">`).join('');
-}
-function setWho(w){ whoFilter=w; buildFilters(); render(); }
-function colorFor(who){
-  const whos = [...new Set(items.map(x=>x.who).filter(Boolean))];
-  const i = whos.indexOf(who);
-  return WHO_COLORS[(i<0?0:i)%WHO_COLORS.length];
-}
-
-/* =========================================================
-   描画
-   ========================================================= */
-function render(){
-  const q = document.getElementById('search').value.trim().toLowerCase();
-  const tf = document.getElementById('typeFilter').value;
-  const sort = document.getElementById('sortBy').value;
-
-  let arr = items.filter(x=>{
-    if(whoFilter && x.who!==whoFilter) return false;
-    if(tf && x.type!==tf) return false;
-    if(q){
-      const blob = [x.company,x.name,x.memo,x.coverage,x.who,x.type,x.policy].join(' ').toLowerCase();
-      if(!blob.includes(q)) return false;
-    }
-    return true;
-  });
-
-  // 並び替え
-  arr.sort((a,b)=>{
-    if(sort==='soon'){
-      const da=daysUntil(a.end_date)??99999, db=daysUntil(b.end_date)??99999; return da-db;
-    }
-    if(sort==='high') return toYearly(b.premium,b.paycycle)-toYearly(a.premium,a.paycycle);
-    if(sort==='who') return (a.who||'').localeCompare(b.who||'','ja');
-    if(sort==='type') return (a.type||'').localeCompare(b.type||'','ja');
-    return 0;
-  });
-
-  // サマリー（絞り込み後の合計）
-  updateSummary(arr);
-
-  // 一覧
-  const list = document.getElementById('list');
-  if(arr.length===0){
-    list.innerHTML = `<div class="empty" style="grid-column:1/-1">
-      <div class="big">🗂️</div>まだ登録がありません。<br>右下の「＋ 保険を追加」から始めましょう。</div>`;
-    return;
-  }
-  list.innerHTML = arr.map(cardHtml).join('');
-}
-
-function cardHtml(x){
-  const yearly = toYearly(x.premium,x.paycycle);
-  const col = colorFor(x.who);
-  const dEnd = daysUntil(x.end_date);
-  const soon = dEnd!==null && dEnd>=0 && dEnd<=SOON_DAYS;
-  const isTsumi = x.kake==='積立';
-  return `<div class="pcard" style="border-left-color:${col}" onclick="showDetail('${x.id}')">
-    <div class="pc-top">
-      <span class="pc-who" style="background:${col}">${x.who||'—'}</span>
-      <span class="pc-type">${x.type||''}</span>
-    </div>
-    <div class="pc-name">${x.name||'（商品名なし）'}</div>
-    <div class="pc-company">${x.company||''}</div>
-    <div class="pc-grid">
-      <div><span class="k">年間保険料</span><span class="v">${yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':'—')}</span></div>
-      <div><span class="k">支払</span><span class="v">${x.premium?yen(x.premium)+'／'+x.paycycle:'—'}</span></div>
-      <div><span class="k">満期日</span><span class="v">${x.end_date||'—'}</span></div>
-      <div><span class="k">区分</span><span class="v">
-        <span class="tag ${isTsumi?'tsumi':'kake'}">${x.kake||'—'}</span></span></div>
-    </div>
-    ${soon?`<div style="margin-top:10px"><span class="tag soon">満期まで${dEnd}日</span></div>`:''}
-  </div>`;
-}
-
-function updateSummary(arr){
-  const total = arr.reduce((s,x)=>s+toYearly(x.premium,x.paycycle),0);
-  document.getElementById('sumYear').textContent = yen(total);
-  document.getElementById('sumMonth').textContent = yen(total/12);
-  document.getElementById('sumCount').textContent = arr.length;
-
-  // 掛け捨て/積立ドーナツ（年額ベース）
-  const kake = arr.filter(x=>x.kake!=='積立').reduce((s,x)=>s+toYearly(x.premium,x.paycycle),0);
-  const tsumi = total-kake;
-  drawDonut(kake,tsumi);
-  const pct = total>0?Math.round(tsumi/total*100):0;
-  document.getElementById('donutLegend').innerHTML =
-    `<div><span class="lg-dot" style="background:#B0B6C0"></span>掛け捨て ${yen(kake)}</div>
-     <div><span class="lg-dot" style="background:#2F6F6A"></span>積立 ${yen(tsumi)}（${pct}%）</div>`;
-
-  // アラート
-  const soonList = arr.filter(x=>{const d=daysUntil(x.end_date);return d!==null&&d>=0&&d<=SOON_DAYS;});
-  const payList = arr.filter(x=>{const d=daysUntil(x.nextpay);return d!==null&&d>=0&&d<=14;});
-  const strip = document.getElementById('alertStrip');
-  if(soonList.length===0 && payList.length===0){
-    strip.className='alert-strip none';
-    strip.innerHTML = '✅ 直近90日以内に満期を迎える保険はありません。';
-  }else{
-    strip.className='alert-strip';
-    let msg='⚠️ ';
-    if(soonList.length) msg+=`<b>${soonList.length}件</b>が90日以内に満期。`;
-    if(payList.length) msg+=`引き落とし間近が<b>${payList.length}件</b>。`;
-    strip.innerHTML = msg;
-  }
-}
-
-function drawDonut(a,b){
-  const total=a+b, svg=document.getElementById('donut');
-  const cx=44,cy=44,r=34,sw=16, C=2*Math.PI*r;
-  if(total===0){
-    svg.innerHTML=`<circle cx="44" cy="44" r="34" fill="none" stroke="#E3E1DA" stroke-width="16"/>`;
-    return;
-  }
-  const aLen=C*(a/total);
-  svg.innerHTML=`
-    <circle cx="44" cy="44" r="34" fill="none" stroke="#2F6F6A" stroke-width="16"/>
-    <circle cx="44" cy="44" r="34" fill="none" stroke="#B0B6C0" stroke-width="16"
-      stroke-dasharray="${aLen} ${C}" transform="rotate(-90 44 44)"/>`;
-}
-
-/* =========================================================
-   詳細表示
-   ========================================================= */
-function showDetail(id){
-  const x = items.find(i=>i.id===id); if(!x) return;
-  curId = id;
-  document.getElementById('dTitle').textContent = x.name||'詳細';
-  const yearly = toYearly(x.premium,x.paycycle);
-  const row=(k,v)=> v?`<div class="drow"><span class="dk">${k}</span><span class="dv">${v}</span></div>`:'';
-  let html = `<div class="detail-block"><div class="dh">基本</div>
-    ${row('だれの', x.who)}${row('種類', x.type)}${row('区分', x.kake)}
-    ${row('保険会社', x.company)}${row('商品名', x.name)}${row('証券番号', x.policy)}</div>`;
-  html += `<div class="detail-block"><div class="dh">お金</div>
-    ${row('保険料', x.premium?yen(x.premium)+'／'+x.paycycle:'')}
-    ${row('年間換算', yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':''))}</div>`;
-  html += `<div class="detail-block"><div class="dh">日付</div>
-    ${row('契約日', x.start_date)}${row('満期日', x.end_date)}${row('払込満了', x.paidup)}${row('次回引き落とし', x.nextpay)}</div>`;
-  const cov=`<div class="detail-block"><div class="dh">保障・受取</div>
-    ${row('保障内容', x.coverage)}${row('受取人', x.beneficiary)}</div>`;
-  if(x.coverage||x.beneficiary) html+=cov;
-  if(x.kake==='積立'){
-    html += `<div class="detail-block"><div class="dh">積立</div>
-      ${row('解約返戻金', x.surrender?yen(x.surrender):'')}
-      ${row('満期返戻金', x.maturity?yen(x.maturity):'')}
-      ${row('受取メモ', x.returnmemo)}</div>`;
-  }
-  if(x.memo) html += `<div class="detail-block"><div class="dh">メモ</div>
-    <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${x.memo}</div></div>`;
-  if(useCloud){
-    const docs=x.docs||[];
-    html += `<div class="detail-block"><div class="dh">証書・書類</div>`;
-    docs.forEach(d=>{
-      html += `<div class="doc-row"><button class="doc-name" onclick="openDoc('${d.path}')">📄 ${d.name}</button>
-        <button class="doc-del" onclick="deleteDoc('${d.path}')">削除</button></div>`;
+    const JSZip=await ensureJSZip();
+    const zip=new JSZip();
+    const used={};
+    list.forEach(d=>{
+      let base=(d.name||'なまえなし').replace(/[\\/:*?"<>|]/g,'_').trim()||'なまえなし';
+      used[base]=(used[base]||0)+1;
+      const idx=String(used[base]).padStart(2,'0');
+      const b64=(d.image||'').split(',')[1];
+      if(b64) zip.file(base+'_'+idx+'.png', b64, {base64:true});
     });
-    if(docs.length===0) html += `<div style="font-size:13px;color:var(--ink-soft)">まだ添付はありません</div>`;
-    html += `<button class="doc-add" onclick="document.getElementById('docFile').click()">📎 証書（PDF・写真）を追加</button></div>`;
-  }
-  document.getElementById('detailBody').innerHTML = html;
-  openModal('detailModal');
-}
-function editCurrent(){ closeModal('detailModal'); openForm(curId); }
-async function uploadDoc(e){
-  const file=e.target.files[0]; if(!file||!curId){ e.target.value=''; return; }
-  if(file.size>10*1024*1024){ toast('10MBまでにしてください'); e.target.value=''; return; }
-  toast('アップロード中…');
-  const ext=(file.name.split('.').pop()||'dat').toLowerCase().replace(/[^a-z0-9]/g,'');
-  const path=`${curId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
-  const {error}=await sb.storage.from('hoken-docs').upload(path,file);
-  if(error){ toast('添付エラー：'+error.message); e.target.value=''; return; }
-  const it=items.find(x=>x.id===curId);
-  it.docs=it.docs||[]; it.docs.push({path,name:file.name});
-  await sb.from('hoken').update({docs:it.docs}).eq('id',curId);
-  showDetail(curId); toast('証書を添付しました'); e.target.value='';
-}
-async function openDoc(path){
-  const {data,error}=await sb.storage.from('hoken-docs').createSignedUrl(path,120);
-  if(error){ toast('開けませんでした：'+error.message); return; }
-  window.open(data.signedUrl,'_blank');
-}
-async function deleteDoc(path){
-  if(!confirm('この証書を削除します。よろしいですか？')) return;
-  await sb.storage.from('hoken-docs').remove([path]);
-  const it=items.find(x=>x.id===curId);
-  it.docs=(it.docs||[]).filter(d=>d.path!==path);
-  await sb.from('hoken').update({docs:it.docs}).eq('id',curId);
-  showDetail(curId); toast('削除しました');
-}
-
-/* =========================================================
-   フォーム
-   ========================================================= */
-let segKake='掛け捨て';
-function pickSeg(btn,group){
-  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  if(group==='kake'){ segKake=btn.dataset.v; document.getElementById('tsumiFold').style.display = segKake==='積立'?'block':'none'; }
-}
-
-function openForm(id){
-  curId = id||null;
-  const f=id=>document.getElementById(id);
-  document.getElementById('formTitle').textContent = id?'保険を編集':'保険を追加';
-  document.getElementById('delBtn').style.display = id?'block':'none';
-  const x = id?items.find(i=>i.id===id):{};
-  f('f_who').value=x.who||''; f('f_type').value=x.type||'生命保険';
-  f('f_company').value=x.company||''; f('f_name').value=x.name||''; f('f_policy').value=x.policy||'';
-  f('f_premium').value=x.premium||''; f('f_paycycle').value=x.paycycle||'月払';
-  f('f_start').value=x.start_date||''; f('f_end').value=x.end_date||''; f('f_paidup').value=x.paidup||''; f('f_nextpay').value=x.nextpay||'';
-  f('f_coverage').value=x.coverage||''; f('f_beneficiary').value=x.beneficiary||'';
-  f('f_surrender').value=x.surrender||''; f('f_maturity').value=x.maturity||''; f('f_returnmemo').value=x.returnmemo||'';
-  f('f_memo').value=x.memo||'';
-  // 区分セグメント
-  segKake = x.kake||'掛け捨て';
-  document.querySelectorAll('#segKake button').forEach(b=>b.classList.toggle('on',b.dataset.v===segKake));
-  document.getElementById('tsumiFold').style.display = segKake==='積立'?'block':'none';
-  ['start','end','paidup','nextpay'].forEach(k=>updDate('f_'+k,'btn_'+k));
-  openModal('formModal');
-}
-
-async function saveItem(){
-  const f=id=>document.getElementById(id).value.trim();
-  if(!f('f_who')){ toast('「だれの保険か」を入れてください'); return; }
-  const row = {
-    id: curId || (crypto.randomUUID ? crypto.randomUUID() : 'id'+Date.now()),
-    who:f('f_who'), type:f('f_type'), kake:segKake,
-    company:f('f_company'), name:f('f_name'), policy:f('f_policy'),
-    premium:Number(f('f_premium'))||0, paycycle:f('f_paycycle'),
-    start_date:f('f_start')||null, end_date:f('f_end')||null, paidup:f('f_paidup')||null, nextpay:f('f_nextpay')||null,
-    coverage:f('f_coverage'), beneficiary:f('f_beneficiary'),
-    surrender:Number(f('f_surrender'))||0, maturity:Number(f('f_maturity'))||0, returnmemo:f('f_returnmemo'),
-    memo:f('f_memo'),
-    docs: curId ? (items.find(i=>i.id===curId)?.docs || []) : [],
-    created_at: curId ? (items.find(i=>i.id===curId)?.created_at||new Date().toISOString()) : new Date().toISOString()
-  };
-  const saved = await upsertRow(row);
-  if(saved){
-    const i=items.findIndex(x=>x.id===row.id);
-    if(i>=0) items[i]=saved; else items.push(saved);
-    closeModal('formModal'); buildFilters(); render(); toast('保存しました');
+    const blob=await zip.generateAsync({type:'blob'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='おえかき_'+(state.room||'gallery')+'.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }catch(err){
+    alert('ほぞんできませんでした。\nネットにつながっているか ためしてください。\n('+(err.message||err)+')');
+  }finally{
+    btn.disabled=false; btn.textContent=label;
+    if(btn===saveSelBtn) updateSaveSelBtn();
   }
 }
 
-async function deleteItem(){
-  if(!curId) return;
-  if(!confirm('この保険を削除します。よろしいですか？')) return;
-  if(await deleteRow(curId)){
-    items = items.filter(x=>x.id!==curId);
-    closeModal('formModal'); buildFilters(); render(); toast('削除しました');
+// 1枚けす・ぜんぶけす（もとに戻せないので確認します）
+async function deleteOne(d){
+  if(!confirm('「'+(d.name||'なまえなし')+'」の えを 1まい けしますか？\nもとには もどせません。'))return;
+  const {error}=await supabase.from('drawings').delete().eq('id',d.id);
+  if(error){ alert('けせませんでした。\n'+(error.message||'')); return; }
+  loadGallery();
+}
+async function deleteAll(){
+  if(galleryData.length===0){ alert('けすものが ありません。'); return; }
+  if(!confirm('この あいことば の えを ぜんぶ けしますか？（'+galleryData.length+'まい）\nもとには もどせません。'))return;
+  const {error}=await supabase.from('drawings').delete().eq('room',state.room);
+  if(error){ alert('けせませんでした。\n'+(error.message||'')); return; }
+  loadGallery();
+}
+document.getElementById('clearAllBtn').onclick=deleteAll;
+
+// みんなにみせる（提示モード：プロジェクターや画面共有で大きく表示）
+const present=document.getElementById('present');
+const presentImg=document.getElementById('presentImg');
+let presentIdx=0;
+async function openPresent(){
+  await loadGallery();
+  if(galleryData.length===0){ alert('まだ ていしゅつ が ありません。'); return; }
+  presentIdx=0; present.classList.add('show'); renderPresent();
+  if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+}
+function renderPresent(){
+  const d=galleryData[presentIdx]; if(!d)return;
+  presentImg.src=d.image;
+  document.getElementById('presentName').textContent=d.name||'なまえなし';
+  document.getElementById('presentCount').textContent=(presentIdx+1)+' / '+galleryData.length;
+}
+function presentMove(n){ if(!galleryData.length)return; presentIdx=(presentIdx+n+galleryData.length)%galleryData.length; renderPresent(); }
+function closePresent(){ present.classList.remove('show'); if(document.fullscreenElement)document.exitFullscreen().catch(()=>{}); }
+document.getElementById('presentBtn').onclick=openPresent;
+document.getElementById('presentPrev').onclick=()=>presentMove(-1);
+document.getElementById('presentNext').onclick=()=>presentMove(1);
+document.getElementById('presentClose').onclick=closePresent;
+document.addEventListener('keydown',e=>{ if(!present.classList.contains('show'))return;
+  if(e.key==='ArrowRight')presentMove(1); else if(e.key==='ArrowLeft')presentMove(-1); else if(e.key==='Escape')closePresent(); });
+
+// タブ
+const tabLive=document.getElementById('tabLive'), tabGallery=document.getElementById('tabGallery');
+tabLive.onclick=()=>{ tabLive.classList.add('sel'); tabGallery.classList.remove('sel');
+  document.getElementById('liveView').style.display='flex'; document.getElementById('galleryView').style.display='none'; galleryVisible=false; };
+tabGallery.onclick=()=>{ tabGallery.classList.add('sel'); tabLive.classList.remove('sel');
+  document.getElementById('galleryView').style.display='flex'; document.getElementById('liveView').style.display='none'; galleryVisible=true; loadGallery(); };
+
+// モーダル
+const modal=document.getElementById('modal');
+function openModal(src,name){ document.getElementById('modalImg').src=src;
+  const dl=document.getElementById('modalDl'); dl.href=src; dl.download=(name||'oekaki')+'.png'; modal.classList.add('show'); }
+document.getElementById('modalClose').onclick=()=>modal.classList.remove('show');
+modal.onclick=e=>{ if(e.target===modal)modal.classList.remove('show'); };
+
+/* =====================================================================
+   入口ボタン
+===================================================================== */
+function setDot(on){ document.getElementById('stuDot').classList.toggle('on',on); document.getElementById('teaDot').classList.toggle('on',on); }
+
+document.getElementById('goStudent').onclick=()=>start('student');
+document.getElementById('goTeacher').onclick=()=>start('teacher');
+
+async function start(role){
+  if(!supabase){ alert('さきに Supabase の せってい を いれてね。'); return; }
+  const room=roomInput.value.trim();
+  if(!room){ alert('あいことば を いれてね。'); return; }
+  const name=nameInput.value.trim();
+  if(role==='student' && !name){ alert('なまえ を いれてね。'); return; }
+  if(role==='teacher'){
+    if(!confirm('せんせい ですか？\nこの がめんは せんせいよう です。\n（せいとは 「もどる」で もどってね）')) return;
+  }
+  localStorage.setItem('oekaki_room',room);
+  if(name) localStorage.setItem('oekaki_name',name);
+
+  state.room=room; state.name=name; state.role=role;
+  const ch=joinChannel(room);
+  if(role==='teacher'){
+    ch.on('broadcast',{event:'draw'},m=>handleDraw(m.payload))
+      .on('broadcast',{event:'fill'},m=>handleFill(m.payload))
+      .on('broadcast',{event:'clear'},m=>handleClear(m.payload))
+      .on('broadcast',{event:'submitted'},m=>handleSubmitted(m.payload));
+  }
+  ch.subscribe(status=>{ setDot(status==='SUBSCRIBED'); });
+  state.channel=ch;
+
+  if(role==='student'){
+    document.getElementById('stuName').textContent=name;
+    document.getElementById('stuRoom').textContent=room;
+    show('student'); requestAnimationFrame(layoutCanvas);
+  }else{
+    document.getElementById('teaRoom').textContent=room;
+    Object.keys(tiles).forEach(k=>delete tiles[k]); liveGrid.innerHTML=''; refreshLiveEmpty();
+    show('teacher');
   }
 }
 
-/* =========================================================
-   書き出し・読み込み
-   ========================================================= */
-function exportJson(){
-  const blob = new Blob([JSON.stringify(items,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='hoken-backup-'+new Date().toISOString().slice(0,10)+'.json';
-  a.click();
-  toast('書き出しました');
-}
-async function importJson(e){
-  const file=e.target.files[0]; if(!file) return;
-  try{
-    const data=JSON.parse(await file.text());
-    if(!Array.isArray(data)) throw 0;
-    for(const row of data){ if(!row.id) row.id=crypto.randomUUID?crypto.randomUUID():'id'+Date.now()+Math.random(); await upsertRow(row); }
-    await loadData(); toast(data.length+'件を読み込みました');
-  }catch(err){ toast('読み込めませんでした（ファイル形式を確認）'); }
-  e.target.value='';
-}
+// もどる
+document.getElementById('stuBack').onclick=()=>leave();
+document.getElementById('teaBack').onclick=()=>leave();
+function leave(){ if(state.channel){ supabase.removeChannel(state.channel); state.channel=null; }
+  setDot(false); show('entry'); }
 
-/* =========================================================
-   小物
-   ========================================================= */
-function openModal(id){ document.getElementById(id).classList.add('on'); }
-function updDate(id,btnId){
-  const v=document.getElementById(id).value, b=document.getElementById(btnId);
-  if(!v){ b.textContent='日付を選ぶ'; b.classList.remove('has'); return; }
-  const d=new Date(v+'T00:00:00');
-  const w=['日','月','火','水','木','金','土'][d.getDay()];
-  b.textContent=`${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月${String(d.getDate()).padStart(2,'0')}日（${w}）`;
-  b.classList.add('has');
-}
-function closeModal(id){ document.getElementById(id).classList.remove('on'); }
-function openSettings(){ openModal('setModal'); }
-function toggleView(){
-  viewMode = viewMode==='card'?'compact':'card';
-  document.getElementById('list').style.gridTemplateColumns =
-    viewMode==='compact'?'1fr':'repeat(auto-fill,minmax(300px,1fr))';
-}
-let toastT;
-function toast(msg){
-  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2200);
-}
-document.getElementById('printDate').textContent = new Date().toLocaleDateString('ja-JP');
+window.addEventListener('resize',()=>{ if(document.getElementById('student').classList.contains('active')) layoutCanvas(); });
 
-// モーダル背景タップで閉じる
-document.querySelectorAll('.modal').forEach(m=>{
-  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('on'); });
-});
-
-// 起動
-if(sessionStorage.getItem('hoken_ok')==='1'){ loadData(); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 </script>
 </body>
 </html>
