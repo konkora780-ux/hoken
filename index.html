@@ -1,0 +1,783 @@
+c<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家族の保険台帳</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#F4F5F3; --card:#FFFFFF; --ink:#243044; --ink-soft:#556074;
+    --line:#E3E1DA; --teal:#2F6F6A; --teal-soft:#EAF1F0;
+    --amber:#C98A3B; --amber-soft:#FBF1E1; --danger:#B4453C; --danger-soft:#F7E7E5;
+    --shadow:0 1px 2px rgba(36,48,68,.06),0 6px 18px rgba(36,48,68,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--paper);color:var(--ink);
+    font-family:'Hiragino Kaku Gothic ProN','Yu Gothic Medium','Yu Gothic','Meiryo',sans-serif;
+    font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;}
+  body{padding-bottom:80px;}
+  h1,h2,h3{font-weight:700;letter-spacing:.02em;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  input,select,textarea{font-family:inherit;font-size:16px;}
+
+  /* ---- ログイン ---- */
+  #gate{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;
+    justify-content:center;z-index:50;padding:24px;}
+  .gate-card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+    box-shadow:var(--shadow);padding:32px 28px;width:100%;max-width:380px;text-align:center;}
+  .gate-mark{width:56px;height:56px;border-radius:16px;background:var(--teal);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;
+    color:#fff;font-size:26px;}
+  .gate-card h1{font-size:21px;margin-bottom:4px;}
+  .gate-card p{color:var(--ink-soft);font-size:13px;margin-bottom:22px;}
+  .gate-card input{width:100%;padding:13px 14px;border:1.5px solid var(--line);
+    border-radius:12px;text-align:center;margin-bottom:12px;}
+  .gate-card input:focus{outline:none;border-color:var(--teal);}
+  .gate-card button{width:100%;padding:13px;background:var(--teal);color:#fff;
+    border-radius:12px;font-size:16px;font-weight:700;}
+  .gate-err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px;}
+
+  /* ---- ヘッダー ---- */
+  header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;}
+  .head-inner{max-width:1000px;margin:0 auto;padding:14px 18px;display:flex;
+    align-items:center;justify-content:space-between;gap:12px;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:34px;height:34px;border-radius:9px;background:var(--teal);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .brand b{font-size:17px;}
+  .head-tools{display:flex;gap:8px;}
+  .icon-btn{width:38px;height:38px;border-radius:10px;background:var(--paper);
+    border:1px solid var(--line);font-size:17px;color:var(--ink);display:flex;
+    align-items:center;justify-content:center;}
+  .icon-btn:active{background:var(--teal-soft);}
+
+  .wrap{max-width:1000px;margin:0 auto;padding:18px;}
+
+  /* ---- サマリー ---- */
+  .summary{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin-bottom:16px;}
+  .sum-card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow);padding:18px;}
+  .sum-card h3{font-size:12px;color:var(--ink-soft);font-weight:700;margin-bottom:10px;
+    letter-spacing:.06em;}
+  .money-row{display:flex;align-items:baseline;gap:6px;margin-bottom:4px;}
+  .money-big{font-size:30px;font-weight:700;letter-spacing:.01em;}
+  .money-unit{font-size:14px;color:var(--ink-soft);}
+  .money-sub{font-size:13px;color:var(--ink-soft);}
+  .donut-wrap{display:flex;align-items:center;gap:16px;}
+  .donut-legend{font-size:13px;line-height:1.9;}
+  .lg-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;
+    vertical-align:middle;}
+
+  .alert-strip{background:var(--amber-soft);border:1px solid #EAD3A6;border-radius:14px;
+    padding:12px 16px;margin-bottom:16px;font-size:14px;display:flex;align-items:center;gap:10px;}
+  .alert-strip.none{background:var(--teal-soft);border-color:#C8DFDB;}
+  .alert-strip b{color:var(--danger);}
+
+  /* ---- フィルタ ---- */
+  .filters{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow);padding:12px;margin-bottom:16px;}
+  .filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .search{flex:1;min-width:160px;position:relative;}
+  .search input{width:100%;padding:10px 12px 10px 36px;border:1.5px solid var(--line);
+    border-radius:11px;}
+  .search input:focus{outline:none;border-color:var(--teal);}
+  .search::before{content:"🔍";position:absolute;left:12px;top:50%;transform:translateY(-50%);
+    font-size:14px;opacity:.6;}
+  .chip{padding:9px 14px;border-radius:11px;border:1.5px solid var(--line);background:var(--card);
+    font-size:14px;color:var(--ink-soft);white-space:nowrap;}
+  .chip.on{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:700;}
+  select.chip{padding-right:10px;}
+  .chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-top:8px;}
+  .chips-scroll::-webkit-scrollbar{height:0;}
+
+  /* ---- 一覧 ---- */
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+  .pcard{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow);padding:16px;position:relative;border-left:5px solid var(--teal);
+    cursor:pointer;transition:transform .08s ease;}
+  .pcard:active{transform:scale(.995);}
+  .pc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
+  .pc-who{font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;}
+  .pc-type{font-size:12px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);
+    padding:3px 9px;border-radius:20px;}
+  .pc-name{font-size:17px;font-weight:700;margin-bottom:2px;line-height:1.3;}
+  .pc-company{font-size:13px;color:var(--ink-soft);margin-bottom:12px;}
+  .pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px;}
+  .pc-grid .k{color:var(--ink-soft);font-size:11px;display:block;}
+  .pc-grid .v{font-weight:700;}
+  .badge-kake{position:absolute;top:14px;right:14px;}
+  .tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;}
+  .tag.kake{background:var(--paper);color:var(--ink-soft);border:1px solid var(--line);}
+  .tag.tsumi{background:var(--teal-soft);color:var(--teal);}
+  .tag.soon{background:var(--danger-soft);color:var(--danger);}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+  .empty .big{font-size:40px;margin-bottom:12px;}
+
+  /* ---- 追加ボタン ---- */
+  .fab{position:fixed;right:22px;bottom:22px;z-index:25;background:var(--teal);color:#fff;
+    border-radius:16px;padding:15px 22px;font-size:16px;font-weight:700;box-shadow:0 6px 20px rgba(47,111,106,.4);
+    display:flex;align-items:center;gap:8px;}
+
+  /* ---- モーダル ---- */
+  .modal{position:fixed;inset:0;background:rgba(36,48,68,.45);z-index:40;display:none;
+    align-items:flex-end;justify-content:center;}
+  .modal.on{display:flex;}
+  .sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;
+    border-radius:22px 22px 0 0;padding:22px 20px 32px;}
+  @media(min-width:700px){.modal{align-items:center;}.sheet{border-radius:22px;max-height:88vh;}}
+  .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;
+    position:sticky;top:-22px;background:var(--card);padding-top:4px;}
+  .sheet-head h2{font-size:19px;}
+  .close-x{width:34px;height:34px;border-radius:50%;background:var(--paper);font-size:18px;color:var(--ink-soft);}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;}
+  .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);
+    border-radius:11px;background:var(--card);}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal);}
+  .field textarea{resize:vertical;min-height:64px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .seg{display:flex;gap:8px;}
+  .seg button{flex:1;padding:11px;border-radius:11px;border:1.5px solid var(--line);
+    background:var(--card);font-size:14px;color:var(--ink-soft);font-weight:700;}
+  .seg button.on{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .fold{border-top:1px solid var(--line);margin-top:6px;padding-top:14px;}
+  .fold-title{font-size:13px;font-weight:700;color:var(--teal);margin-bottom:12px;cursor:pointer;}
+  .save-bar{display:flex;gap:10px;margin-top:8px;}
+  .btn-main{flex:1;padding:14px;background:var(--teal);color:#fff;border-radius:12px;
+    font-size:16px;font-weight:700;}
+  .btn-del{padding:14px 18px;background:var(--danger-soft);color:var(--danger);border-radius:12px;
+    font-size:15px;font-weight:700;border:1px solid #E9C9C5;}
+
+  /* ---- 詳細表示 ---- */
+  .detail-block{margin-bottom:16px;}
+  .detail-block .dh{font-size:12px;color:var(--ink-soft);font-weight:700;letter-spacing:.05em;
+    margin-bottom:8px;border-bottom:1px solid var(--line);padding-bottom:6px;}
+  .drow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;gap:16px;}
+  .drow .dk{color:var(--ink-soft);flex-shrink:0;}
+  .drow .dv{font-weight:700;text-align:right;}
+
+  /* ---- 設定 ---- */
+  .set-item{padding:14px 0;border-bottom:1px solid var(--line);}
+  .set-item:last-child{border-bottom:none;}
+  .set-item .st{font-weight:700;margin-bottom:4px;}
+  .set-item .sd{font-size:13px;color:var(--ink-soft);margin-bottom:10px;}
+  .set-btn{padding:10px 16px;background:var(--paper);border:1px solid var(--line);
+    border-radius:10px;font-weight:700;color:var(--ink);font-size:14px;}
+  .set-btn.warn{background:var(--danger-soft);color:var(--danger);border-color:#E9C9C5;}
+
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--ink);
+    color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:60;opacity:0;
+    transition:opacity .3s;pointer-events:none;box-shadow:var(--shadow);}
+  .toast.on{opacity:1;}
+
+  @media(max-width:560px){
+    .summary{grid-template-columns:1fr;}
+    .money-big{font-size:26px;}
+  }
+
+  /* ---- 印刷 ---- */
+  @media print{
+    header,.fab,.filters,.alert-strip,.head-tools,.summary .donut-wrap{display:none!important;}
+    body{background:#fff;padding:0;}
+    .pcard{break-inside:avoid;box-shadow:none;border:1px solid #ccc;}
+    .list{grid-template-columns:1fr 1fr;}
+    .print-title{display:block!important;font-size:18px;margin:0 0 14px;font-weight:700;}
+  }
+  .print-title{display:none;}
+</style>
+</head>
+<body>
+
+<!-- ============ ログイン ============ -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-mark">🗂️</div>
+    <h1>家族の保険台帳</h1>
+    <p>あいことばを入れてください</p>
+    <input type="password" id="gatePw" placeholder="あいことば" autocomplete="off">
+    <button onclick="tryLogin()">ひらく</button>
+    <div class="gate-err" id="gateErr"></div>
+  </div>
+</div>
+
+<!-- ============ 本体 ============ -->
+<header>
+  <div class="head-inner">
+    <div class="brand">
+      <div class="brand-mark">🗂️</div>
+      <b>家族の保険台帳</b>
+    </div>
+    <div class="head-tools">
+      <button class="icon-btn" onclick="toggleView()" id="viewBtn" title="表示切替">☰</button>
+      <button class="icon-btn" onclick="window.print()" title="印刷">🖨️</button>
+      <button class="icon-btn" onclick="openSettings()" title="設定">⚙️</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="print-title">家族の保険一覧（<span id="printDate"></span>）</div>
+
+  <!-- サマリー -->
+  <div class="summary">
+    <div class="sum-card">
+      <h3>年間の保険料（合計）</h3>
+      <div class="money-row">
+        <span class="money-big" id="sumYear">¥0</span><span class="money-unit">/年</span>
+      </div>
+      <div class="money-sub">月あたり <span id="sumMonth">¥0</span> ・ <span id="sumCount">0</span>件</div>
+    </div>
+    <div class="sum-card">
+      <h3>掛け捨て / 積立の内訳</h3>
+      <div class="donut-wrap">
+        <svg id="donut" width="88" height="88" viewBox="0 0 88 88"></svg>
+        <div class="donut-legend" id="donutLegend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert-strip none" id="alertStrip"></div>
+
+  <!-- フィルタ -->
+  <div class="filters">
+    <div class="filter-row">
+      <div class="search"><input type="text" id="search" placeholder="会社名・商品名・メモで検索" oninput="render()"></div>
+      <select class="chip" id="typeFilter" onchange="render()">
+        <option value="">種類：すべて</option>
+      </select>
+      <select class="chip" id="sortBy" onchange="render()">
+        <option value="soon">満期が近い順</option>
+        <option value="who">人ごと</option>
+        <option value="type">種類ごと</option>
+        <option value="high">保険料が高い順</option>
+      </select>
+    </div>
+    <div class="chips-scroll" id="whoChips"></div>
+  </div>
+
+  <!-- 一覧 -->
+  <div class="list" id="list"></div>
+</div>
+
+<button class="fab" onclick="openForm()">＋ 保険を追加</button>
+
+<!-- ============ 追加/編集モーダル ============ -->
+<div class="modal" id="formModal">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="formTitle">保険を追加</h2>
+      <button class="close-x" onclick="closeModal('formModal')">✕</button>
+    </div>
+
+    <div class="field">
+      <label>だれの保険？（家族の名前）</label>
+      <input type="text" id="f_who" list="whoList" placeholder="例：父・母・太郎">
+      <datalist id="whoList"></datalist>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>種類</label>
+        <select id="f_type">
+          <option>生命保険</option><option>医療保険</option><option>がん保険</option>
+          <option>自動車保険</option><option>火災保険</option><option>地震保険</option>
+          <option>学資保険</option><option>個人年金</option><option>傷害保険</option>
+          <option>就業不能・所得補償</option><option>その他</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>掛け捨て / 積立</label>
+        <div class="seg" id="segKake">
+          <button type="button" class="on" data-v="掛け捨て" onclick="pickSeg(this,'kake')">掛け捨て</button>
+          <button type="button" data-v="積立" onclick="pickSeg(this,'kake')">積立（貯蓄型）</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field"><label>保険会社</label><input type="text" id="f_company" placeholder="例：〇〇生命"></div>
+    <div class="field"><label>商品名</label><input type="text" id="f_name" placeholder="例：終身医療保険プラン"></div>
+    <div class="field"><label>証券番号</label><input type="text" id="f_policy" placeholder="任意"></div>
+
+    <div class="field-row">
+      <div class="field"><label>保険料</label><input type="number" id="f_premium" placeholder="0" inputmode="numeric"></div>
+      <div class="field">
+        <label>支払方法</label>
+        <select id="f_paycycle">
+          <option value="月払">月払い</option><option value="年払">年払い</option>
+          <option value="半年払">半年払い</option><option value="一時払">一時払い（全額前納）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>契約日</label><input type="date" id="f_start"></div>
+      <div class="field"><label>満期日（あれば）</label><input type="date" id="f_end"></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>払込満了（あれば）</label><input type="date" id="f_paidup"></div>
+      <div class="field"><label>次回引き落とし日（あれば）</label><input type="date" id="f_nextpay"></div>
+    </div>
+
+    <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
+    <div class="field"><label>受取人</label><input type="text" id="f_beneficiary" placeholder="任意"></div>
+
+    <div class="fold" id="tsumiFold" style="display:none;">
+      <div class="fold-title">💰 積立の情報</div>
+      <div class="field-row">
+        <div class="field"><label>解約返戻金の見込み</label><input type="number" id="f_surrender" placeholder="0" inputmode="numeric"></div>
+        <div class="field"><label>満期返戻金の見込み</label><input type="number" id="f_maturity" placeholder="0" inputmode="numeric"></div>
+      </div>
+      <div class="field"><label>受け取り予定の時期・メモ</label><input type="text" id="f_returnmemo" placeholder="例：60歳満期・据置可"></div>
+    </div>
+
+    <div class="field"><label>メモ</label><textarea id="f_memo" placeholder="更新の有無、代理店の連絡先、注意点など"></textarea></div>
+
+    <div class="save-bar">
+      <button class="btn-main" onclick="saveItem()">保存する</button>
+      <button class="btn-del" id="delBtn" onclick="deleteItem()" style="display:none;">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 詳細モーダル ============ -->
+<div class="modal" id="detailModal">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="dTitle">詳細</h2>
+      <button class="close-x" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div id="detailBody"></div>
+    <div class="save-bar">
+      <button class="btn-main" onclick="editCurrent()">編集する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 設定モーダル ============ -->
+<div class="modal" id="setModal">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>設定・データ</h2>
+      <button class="close-x" onclick="closeModal('setModal')">✕</button>
+    </div>
+    <div class="set-item">
+      <div class="st">📤 書き出し（バックアップ）</div>
+      <div class="sd">全データを1つのファイルに保存します。家族や別の端末へ渡すときにも使えます。</div>
+      <button class="set-btn" onclick="exportJson()">ファイルに書き出す</button>
+    </div>
+    <div class="set-item">
+      <div class="st">📥 読み込み</div>
+      <div class="sd">書き出したファイルを取り込みます。同じ証券番号のものは上書きされます。</div>
+      <button class="set-btn" onclick="document.getElementById('importFile').click()">ファイルを読み込む</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJson(event)">
+    </div>
+    <div class="set-item">
+      <div class="st">🖨️ 印刷用の一覧</div>
+      <div class="sd">今の絞り込みのまま、紙に印刷できます。保険の棚卸しメモに。</div>
+      <button class="set-btn" onclick="closeModal('setModal');setTimeout(()=>window.print(),300)">印刷する</button>
+    </div>
+    <div class="set-item">
+      <div class="st">🔒 ログアウト</div>
+      <div class="sd">あいことばの入力画面に戻ります。</div>
+      <button class="set-btn warn" onclick="logout()">ログアウト</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   設定（ここだけ書き換えます）
+   ========================================================= */
+const CONFIG = {
+  SUPABASE_URL: 'https://glxszbwsvembyygocekp.supabase.co/rest/v1/',
+  SUPABASE_ANON: 'sb_publishable_9grsvrOlzxrzJqsKvqF1ow_u8SFQsII',
+  PASSWORD: 'kazoku'   // ← 家族共通のあいことば。好きな言葉に変えてください。
+};
+
+/* 家族ごとの色（自動割り当て・彩度控えめ） */
+const WHO_COLORS = ['#2F6F6A','#3A5A8C','#8C5A7A','#5E8C4A','#B08A2E','#B4453C','#4A7C8C','#7A5AA0'];
+const SOON_DAYS = 90; // 満期・引き落としが何日以内なら「近い」とするか
+
+/* =========================================================
+   Supabase 接続
+   ========================================================= */
+let sb = null, useCloud = false;
+try{
+  if(CONFIG.SUPABASE_URL.startsWith('http') && CONFIG.SUPABASE_ANON.length > 20){
+    sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON);
+    useCloud = true;
+  }
+}catch(e){ console.warn('Supabase未設定'); }
+
+let items = [];      // 保険データ
+let viewMode = 'card';
+let curId = null;    // 編集/詳細中のid
+let whoFilter = '';
+
+/* =========================================================
+   ログイン
+   ========================================================= */
+function tryLogin(){
+  const pw = document.getElementById('gatePw').value;
+  if(pw === CONFIG.PASSWORD){
+    sessionStorage.setItem('hoken_ok','1');
+    document.getElementById('gate').style.display='none';
+    loadData();
+  }else{
+    document.getElementById('gateErr').textContent = 'あいことばが違います';
+  }
+}
+document.getElementById('gatePw').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
+function logout(){ sessionStorage.removeItem('hoken_ok'); location.reload(); }
+if(sessionStorage.getItem('hoken_ok')==='1'){
+  document.getElementById('gate').style.display='none';
+}
+
+/* =========================================================
+   データ読み込み・保存
+   ========================================================= */
+async function loadData(){
+  if(useCloud){
+    const {data,error} = await sb.from('hoken').select('*').order('created_at',{ascending:true});
+    if(error){ toast('読み込みエラー：'+error.message); items=[]; }
+    else items = data || [];
+  }else{
+    // クラウド未設定のときは端末内に一時保存（お試し用）
+    try{ items = JSON.parse(localStorage.getItem('hoken_local')||'[]'); }catch(e){ items=[]; }
+  }
+  buildFilters();
+  render();
+}
+
+async function upsertRow(row){
+  if(useCloud){
+    const {data,error} = await sb.from('hoken').upsert(row,{onConflict:'id'}).select();
+    if(error){ toast('保存エラー：'+error.message); return null; }
+    return data[0];
+  }else{
+    const i = items.findIndex(x=>x.id===row.id);
+    if(i>=0) items[i]=row; else items.push(row);
+    localStorage.setItem('hoken_local',JSON.stringify(items));
+    return row;
+  }
+}
+
+async function deleteRow(id){
+  if(useCloud){
+    const {error} = await sb.from('hoken').delete().eq('id',id);
+    if(error){ toast('削除エラー：'+error.message); return false; }
+  }else{
+    items = items.filter(x=>x.id!==id);
+    localStorage.setItem('hoken_local',JSON.stringify(items));
+  }
+  return true;
+}
+
+/* =========================================================
+   金額計算
+   ========================================================= */
+function toYearly(premium, cycle){
+  const p = Number(premium)||0;
+  if(cycle==='月払') return p*12;
+  if(cycle==='半年払') return p*2;
+  if(cycle==='年払') return p;
+  if(cycle==='一時払') return 0; // 前納済みは年額に含めない
+  return p;
+}
+function yen(n){ return '¥'+(Math.round(Number(n)||0)).toLocaleString('ja-JP'); }
+
+/* 満期・引き落としが近いか（日数） */
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr+'T00:00:00');
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((d-now)/86400000);
+}
+
+/* =========================================================
+   フィルタUI構築
+   ========================================================= */
+function buildFilters(){
+  // 種類プルダウン
+  const types = [...new Set(items.map(x=>x.type).filter(Boolean))];
+  const sel = document.getElementById('typeFilter');
+  sel.innerHTML = '<option value="">種類：すべて</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');
+  // 人チップ
+  const whos = [...new Set(items.map(x=>x.who).filter(Boolean))];
+  const box = document.getElementById('whoChips');
+  let html = `<button class="chip ${whoFilter===''?'on':''}" onclick="setWho('')">全員</button>`;
+  whos.forEach(w=>{
+    html += `<button class="chip ${whoFilter===w?'on':''}" onclick="setWho('${w}')">
+      <span class="lg-dot" style="background:${colorFor(w)}"></span>${w}</button>`;
+  });
+  box.innerHTML = html;
+  // datalist（入力補助）
+  document.getElementById('whoList').innerHTML = whos.map(w=>`<option value="${w}">`).join('');
+}
+function setWho(w){ whoFilter=w; buildFilters(); render(); }
+function colorFor(who){
+  const whos = [...new Set(items.map(x=>x.who).filter(Boolean))];
+  const i = whos.indexOf(who);
+  return WHO_COLORS[(i<0?0:i)%WHO_COLORS.length];
+}
+
+/* =========================================================
+   描画
+   ========================================================= */
+function render(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const tf = document.getElementById('typeFilter').value;
+  const sort = document.getElementById('sortBy').value;
+
+  let arr = items.filter(x=>{
+    if(whoFilter && x.who!==whoFilter) return false;
+    if(tf && x.type!==tf) return false;
+    if(q){
+      const blob = [x.company,x.name,x.memo,x.coverage,x.who,x.type,x.policy].join(' ').toLowerCase();
+      if(!blob.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // 並び替え
+  arr.sort((a,b)=>{
+    if(sort==='soon'){
+      const da=daysUntil(a.end_date)??99999, db=daysUntil(b.end_date)??99999; return da-db;
+    }
+    if(sort==='high') return toYearly(b.premium,b.paycycle)-toYearly(a.premium,a.paycycle);
+    if(sort==='who') return (a.who||'').localeCompare(b.who||'','ja');
+    if(sort==='type') return (a.type||'').localeCompare(b.type||'','ja');
+    return 0;
+  });
+
+  // サマリー（絞り込み後の合計）
+  updateSummary(arr);
+
+  // 一覧
+  const list = document.getElementById('list');
+  if(arr.length===0){
+    list.innerHTML = `<div class="empty" style="grid-column:1/-1">
+      <div class="big">🗂️</div>まだ登録がありません。<br>右下の「＋ 保険を追加」から始めましょう。</div>`;
+    return;
+  }
+  list.innerHTML = arr.map(cardHtml).join('');
+}
+
+function cardHtml(x){
+  const yearly = toYearly(x.premium,x.paycycle);
+  const col = colorFor(x.who);
+  const dEnd = daysUntil(x.end_date);
+  const soon = dEnd!==null && dEnd>=0 && dEnd<=SOON_DAYS;
+  const isTsumi = x.kake==='積立';
+  return `<div class="pcard" style="border-left-color:${col}" onclick="showDetail('${x.id}')">
+    <div class="pc-top">
+      <span class="pc-who" style="background:${col}">${x.who||'—'}</span>
+      <span class="pc-type">${x.type||''}</span>
+    </div>
+    <div class="pc-name">${x.name||'（商品名なし）'}</div>
+    <div class="pc-company">${x.company||''}</div>
+    <div class="pc-grid">
+      <div><span class="k">年間保険料</span><span class="v">${yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':'—')}</span></div>
+      <div><span class="k">支払</span><span class="v">${x.premium?yen(x.premium)+'／'+x.paycycle:'—'}</span></div>
+      <div><span class="k">満期日</span><span class="v">${x.end_date||'—'}</span></div>
+      <div><span class="k">区分</span><span class="v">
+        <span class="tag ${isTsumi?'tsumi':'kake'}">${x.kake||'—'}</span></span></div>
+    </div>
+    ${soon?`<div style="margin-top:10px"><span class="tag soon">満期まで${dEnd}日</span></div>`:''}
+  </div>`;
+}
+
+function updateSummary(arr){
+  const total = arr.reduce((s,x)=>s+toYearly(x.premium,x.paycycle),0);
+  document.getElementById('sumYear').textContent = yen(total);
+  document.getElementById('sumMonth').textContent = yen(total/12);
+  document.getElementById('sumCount').textContent = arr.length;
+
+  // 掛け捨て/積立ドーナツ（年額ベース）
+  const kake = arr.filter(x=>x.kake!=='積立').reduce((s,x)=>s+toYearly(x.premium,x.paycycle),0);
+  const tsumi = total-kake;
+  drawDonut(kake,tsumi);
+  const pct = total>0?Math.round(tsumi/total*100):0;
+  document.getElementById('donutLegend').innerHTML =
+    `<div><span class="lg-dot" style="background:#B0B6C0"></span>掛け捨て ${yen(kake)}</div>
+     <div><span class="lg-dot" style="background:#2F6F6A"></span>積立 ${yen(tsumi)}（${pct}%）</div>`;
+
+  // アラート
+  const soonList = arr.filter(x=>{const d=daysUntil(x.end_date);return d!==null&&d>=0&&d<=SOON_DAYS;});
+  const payList = arr.filter(x=>{const d=daysUntil(x.nextpay);return d!==null&&d>=0&&d<=14;});
+  const strip = document.getElementById('alertStrip');
+  if(soonList.length===0 && payList.length===0){
+    strip.className='alert-strip none';
+    strip.innerHTML = '✅ 直近90日以内に満期を迎える保険はありません。';
+  }else{
+    strip.className='alert-strip';
+    let msg='⚠️ ';
+    if(soonList.length) msg+=`<b>${soonList.length}件</b>が90日以内に満期。`;
+    if(payList.length) msg+=`引き落とし間近が<b>${payList.length}件</b>。`;
+    strip.innerHTML = msg;
+  }
+}
+
+function drawDonut(a,b){
+  const total=a+b, svg=document.getElementById('donut');
+  const cx=44,cy=44,r=34,sw=16, C=2*Math.PI*r;
+  if(total===0){
+    svg.innerHTML=`<circle cx="44" cy="44" r="34" fill="none" stroke="#E3E1DA" stroke-width="16"/>`;
+    return;
+  }
+  const aLen=C*(a/total);
+  svg.innerHTML=`
+    <circle cx="44" cy="44" r="34" fill="none" stroke="#2F6F6A" stroke-width="16"/>
+    <circle cx="44" cy="44" r="34" fill="none" stroke="#B0B6C0" stroke-width="16"
+      stroke-dasharray="${aLen} ${C}" transform="rotate(-90 44 44)"/>`;
+}
+
+/* =========================================================
+   詳細表示
+   ========================================================= */
+function showDetail(id){
+  const x = items.find(i=>i.id===id); if(!x) return;
+  curId = id;
+  document.getElementById('dTitle').textContent = x.name||'詳細';
+  const yearly = toYearly(x.premium,x.paycycle);
+  const row=(k,v)=> v?`<div class="drow"><span class="dk">${k}</span><span class="dv">${v}</span></div>`:'';
+  let html = `<div class="detail-block"><div class="dh">基本</div>
+    ${row('だれの', x.who)}${row('種類', x.type)}${row('区分', x.kake)}
+    ${row('保険会社', x.company)}${row('商品名', x.name)}${row('証券番号', x.policy)}</div>`;
+  html += `<div class="detail-block"><div class="dh">お金</div>
+    ${row('保険料', x.premium?yen(x.premium)+'／'+x.paycycle:'')}
+    ${row('年間換算', yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':''))}</div>`;
+  html += `<div class="detail-block"><div class="dh">日付</div>
+    ${row('契約日', x.start_date)}${row('満期日', x.end_date)}${row('払込満了', x.paidup)}${row('次回引き落とし', x.nextpay)}</div>`;
+  const cov=`<div class="detail-block"><div class="dh">保障・受取</div>
+    ${row('保障内容', x.coverage)}${row('受取人', x.beneficiary)}</div>`;
+  if(x.coverage||x.beneficiary) html+=cov;
+  if(x.kake==='積立'){
+    html += `<div class="detail-block"><div class="dh">積立</div>
+      ${row('解約返戻金', x.surrender?yen(x.surrender):'')}
+      ${row('満期返戻金', x.maturity?yen(x.maturity):'')}
+      ${row('受取メモ', x.returnmemo)}</div>`;
+  }
+  if(x.memo) html += `<div class="detail-block"><div class="dh">メモ</div>
+    <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${x.memo}</div></div>`;
+  document.getElementById('detailBody').innerHTML = html;
+  openModal('detailModal');
+}
+function editCurrent(){ closeModal('detailModal'); openForm(curId); }
+
+/* =========================================================
+   フォーム
+   ========================================================= */
+let segKake='掛け捨て';
+function pickSeg(btn,group){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  if(group==='kake'){ segKake=btn.dataset.v; document.getElementById('tsumiFold').style.display = segKake==='積立'?'block':'none'; }
+}
+
+function openForm(id){
+  curId = id||null;
+  const f=id=>document.getElementById(id);
+  document.getElementById('formTitle').textContent = id?'保険を編集':'保険を追加';
+  document.getElementById('delBtn').style.display = id?'block':'none';
+  const x = id?items.find(i=>i.id===id):{};
+  f('f_who').value=x.who||''; f('f_type').value=x.type||'生命保険';
+  f('f_company').value=x.company||''; f('f_name').value=x.name||''; f('f_policy').value=x.policy||'';
+  f('f_premium').value=x.premium||''; f('f_paycycle').value=x.paycycle||'月払';
+  f('f_start').value=x.start_date||''; f('f_end').value=x.end_date||''; f('f_paidup').value=x.paidup||''; f('f_nextpay').value=x.nextpay||'';
+  f('f_coverage').value=x.coverage||''; f('f_beneficiary').value=x.beneficiary||'';
+  f('f_surrender').value=x.surrender||''; f('f_maturity').value=x.maturity||''; f('f_returnmemo').value=x.returnmemo||'';
+  f('f_memo').value=x.memo||'';
+  // 区分セグメント
+  segKake = x.kake||'掛け捨て';
+  document.querySelectorAll('#segKake button').forEach(b=>b.classList.toggle('on',b.dataset.v===segKake));
+  document.getElementById('tsumiFold').style.display = segKake==='積立'?'block':'none';
+  openModal('formModal');
+}
+
+async function saveItem(){
+  const f=id=>document.getElementById(id).value.trim();
+  if(!f('f_who')){ toast('「だれの保険か」を入れてください'); return; }
+  const row = {
+    id: curId || (crypto.randomUUID ? crypto.randomUUID() : 'id'+Date.now()),
+    who:f('f_who'), type:f('f_type'), kake:segKake,
+    company:f('f_company'), name:f('f_name'), policy:f('f_policy'),
+    premium:Number(f('f_premium'))||0, paycycle:f('f_paycycle'),
+    start_date:f('f_start')||null, end_date:f('f_end')||null, paidup:f('f_paidup')||null, nextpay:f('f_nextpay')||null,
+    coverage:f('f_coverage'), beneficiary:f('f_beneficiary'),
+    surrender:Number(f('f_surrender'))||0, maturity:Number(f('f_maturity'))||0, returnmemo:f('f_returnmemo'),
+    memo:f('f_memo'),
+    created_at: curId ? (items.find(i=>i.id===curId)?.created_at||new Date().toISOString()) : new Date().toISOString()
+  };
+  const saved = await upsertRow(row);
+  if(saved){
+    const i=items.findIndex(x=>x.id===row.id);
+    if(i>=0) items[i]=saved; else items.push(saved);
+    closeModal('formModal'); buildFilters(); render(); toast('保存しました');
+  }
+}
+
+async function deleteItem(){
+  if(!curId) return;
+  if(!confirm('この保険を削除します。よろしいですか？')) return;
+  if(await deleteRow(curId)){
+    items = items.filter(x=>x.id!==curId);
+    closeModal('formModal'); buildFilters(); render(); toast('削除しました');
+  }
+}
+
+/* =========================================================
+   書き出し・読み込み
+   ========================================================= */
+function exportJson(){
+  const blob = new Blob([JSON.stringify(items,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='hoken-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  toast('書き出しました');
+}
+async function importJson(e){
+  const file=e.target.files[0]; if(!file) return;
+  try{
+    const data=JSON.parse(await file.text());
+    if(!Array.isArray(data)) throw 0;
+    for(const row of data){ if(!row.id) row.id=crypto.randomUUID?crypto.randomUUID():'id'+Date.now()+Math.random(); await upsertRow(row); }
+    await loadData(); toast(data.length+'件を読み込みました');
+  }catch(err){ toast('読み込めませんでした（ファイル形式を確認）'); }
+  e.target.value='';
+}
+
+/* =========================================================
+   小物
+   ========================================================= */
+function openModal(id){ document.getElementById(id).classList.add('on'); }
+function closeModal(id){ document.getElementById(id).classList.remove('on'); }
+function openSettings(){ openModal('setModal'); }
+function toggleView(){
+  viewMode = viewMode==='card'?'compact':'card';
+  document.getElementById('list').style.gridTemplateColumns =
+    viewMode==='compact'?'1fr':'repeat(auto-fill,minmax(300px,1fr))';
+}
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2200);
+}
+document.getElementById('printDate').textContent = new Date().toLocaleDateString('ja-JP');
+
+// モーダル背景タップで閉じる
+document.querySelectorAll('.modal').forEach(m=>{
+  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('on'); });
+});
+
+// 起動
+if(sessionStorage.getItem('hoken_ok')==='1'){ loadData(); }
+</script>
+</body>
+</html>
