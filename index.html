@@ -140,6 +140,9 @@
   .date-btn.has{color:var(--ink);font-weight:700;}
   .date-overlay{position:absolute;inset:0;width:100%;height:100%;opacity:0;
     border:0;margin:0;padding:0;-webkit-appearance:none;appearance:none;cursor:pointer;}
+  .period-val{width:100%;padding:11px 12px;border:1.5px solid var(--line);
+    border-radius:11px;background:var(--card);}
+  .period-val:focus{outline:none;border-color:var(--teal);}
   .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);
     border-radius:11px;background:var(--card);}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal);}
@@ -332,19 +335,32 @@
       <div class="field"><label>契約日</label>
         <div class="date-wrap"><span class="date-btn" id="btn_start">日付を選ぶ</span>
         <input type="date" id="f_start" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_start','btn_start')"></div></div>
-      <div class="field"><label>満期日（あれば）</label>
-        <div class="date-wrap"><span class="date-btn" id="btn_end">日付を選ぶ</span>
-        <input type="date" id="f_end" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_end','btn_end')"></div></div>
-    </div>
-
-    <div class="field-row">
-      <div class="field"><label>払込満了（あれば）</label>
-        <div class="date-wrap"><span class="date-btn" id="btn_paidup">日付を選ぶ</span>
-        <input type="date" id="f_paidup" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_paidup','btn_paidup')"></div></div>
       <div class="field"><label>次回引き落とし日（あれば）</label>
         <div class="date-wrap"><span class="date-btn" id="btn_nextpay">日付を選ぶ</span>
         <input type="date" id="f_nextpay" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_nextpay','btn_nextpay')"></div></div>
     </div>
+
+    <div class="field"><label>保険期間・満期</label>
+      <select id="f_endtype" onchange="switchPeriod('end')">
+        <option value="date">満期日を指定</option>
+        <option value="life">終身</option>
+        <option value="age">◯歳まで</option>
+        <option value="years">◯年間</option>
+      </select>
+      <div class="date-wrap" id="wrap_end_date" style="margin-top:8px"><span class="date-btn" id="btn_end">日付を選ぶ</span>
+      <input type="date" id="f_end" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_end','btn_end')"></div>
+      <input type="number" id="f_endvalue" class="period-val" inputmode="numeric" style="display:none;margin-top:8px"></div>
+
+    <div class="field"><label>払込期間・満了</label>
+      <select id="f_paiduptype" onchange="switchPeriod('paidup')">
+        <option value="date">満了日を指定</option>
+        <option value="life">終身払い</option>
+        <option value="age">◯歳まで</option>
+        <option value="years">◯年間</option>
+      </select>
+      <div class="date-wrap" id="wrap_paidup_date" style="margin-top:8px"><span class="date-btn" id="btn_paidup">日付を選ぶ</span>
+      <input type="date" id="f_paidup" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('f_paidup','btn_paidup')"></div>
+      <input type="number" id="f_paidupvalue" class="period-val" inputmode="numeric" style="display:none;margin-top:8px"></div>
 
     <div class="field"><label>保障の内容（自由記入）</label><textarea id="f_coverage" placeholder="例：死亡保障1000万円 / 入院日額5000円 / 先進医療特約"></textarea></div>
     <div class="field"><label>受取人</label><input type="text" id="f_beneficiary" placeholder="任意"></div>
@@ -606,7 +622,7 @@ function render(){
   // 並び替え
   arr.sort((a,b)=>{
     if(sort==='soon'){
-      const da=daysUntil(a.end_date)??99999, db=daysUntil(b.end_date)??99999; return da-db;
+      const da=((a.end_type||'date')==='date'?daysUntil(a.end_date):null)??99999, db=((b.end_type||'date')==='date'?daysUntil(b.end_date):null)??99999; return da-db;
     }
     if(sort==='high') return toYearly(b.premium,b.paycycle)-toYearly(a.premium,a.paycycle);
     if(sort==='who') return (a.who||'').localeCompare(b.who||'','ja');
@@ -630,7 +646,7 @@ function render(){
 function cardHtml(x){
   const yearly = toYearly(x.premium,x.paycycle);
   const col = colorFor(x.who);
-  const dEnd = daysUntil(x.end_date);
+  const dEnd = ((x.end_type||'date')==='date')? daysUntil(x.end_date) : null;
   const soon = dEnd!==null && dEnd>=0 && dEnd<=SOON_DAYS;
   const isTsumi = x.kake==='積立';
   return `<div class="pcard" style="border-left-color:${col}" onclick="showDetail('${x.id}')">
@@ -643,7 +659,7 @@ function cardHtml(x){
     <div class="pc-grid">
       <div><span class="k">年間保険料</span><span class="v">${yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':'—')}</span></div>
       <div><span class="k">支払</span><span class="v">${x.premium?yen(x.premium)+'／'+x.paycycle:'—'}</span></div>
-      <div><span class="k">満期日</span><span class="v">${x.end_date||'—'}</span></div>
+      <div><span class="k">保険期間</span><span class="v">${periodText(x.end_type,x.end_date,x.end_value)}</span></div>
       <div><span class="k">区分</span><span class="v">
         <span class="tag ${isTsumi?'tsumi':'kake'}">${x.kake||'—'}</span></span></div>
     </div>
@@ -667,7 +683,7 @@ function updateSummary(arr){
      <div><span class="lg-dot" style="background:#2F6F6A"></span>積立 ${yen(tsumi)}（${pct}%）</div>`;
 
   // アラート
-  const soonList = arr.filter(x=>{const d=daysUntil(x.end_date);return d!==null&&d>=0&&d<=SOON_DAYS;});
+  const soonList = arr.filter(x=>{if((x.end_type||'date')!=='date')return false;const d=daysUntil(x.end_date);return d!==null&&d>=0&&d<=SOON_DAYS;});
   const payList = arr.filter(x=>{const d=daysUntil(x.nextpay);return d!==null&&d>=0&&d<=14;});
   const strip = document.getElementById('alertStrip');
   if(soonList.length===0 && payList.length===0){
@@ -712,7 +728,7 @@ function showDetail(id){
     ${row('保険料', x.premium?yen(x.premium)+'／'+x.paycycle:'')}
     ${row('年間換算', yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':''))}</div>`;
   html += `<div class="detail-block"><div class="dh">日付</div>
-    ${row('契約日', x.start_date)}${row('満期日', x.end_date)}${row('払込満了', x.paidup)}${row('次回引き落とし', x.nextpay)}</div>`;
+    ${row('契約日', x.start_date)}${row('保険期間', periodText(x.end_type,x.end_date,x.end_value))}${row('払込期間', periodText(x.paidup_type,x.paidup,x.paidup_value))}${row('次回引き落とし', x.nextpay)}</div>`;
   const cov=`<div class="detail-block"><div class="dh">保障・受取</div>
     ${row('保障内容', x.coverage)}${row('受取人', x.beneficiary)}</div>`;
   if(x.coverage||x.beneficiary) html+=cov;
@@ -785,6 +801,9 @@ function openForm(id){
   f('f_company').value=x.company||''; f('f_name').value=x.name||''; f('f_policy').value=x.policy||'';
   f('f_premium').value=x.premium||''; f('f_paycycle').value=x.paycycle||'月払';
   f('f_start').value=x.start_date||''; f('f_end').value=x.end_date||''; f('f_paidup').value=x.paidup||''; f('f_nextpay').value=x.nextpay||'';
+  f('f_endtype').value=x.end_type||'date'; f('f_endvalue').value=x.end_value||'';
+  f('f_paiduptype').value=x.paidup_type||'date'; f('f_paidupvalue').value=x.paidup_value||'';
+  switchPeriod('end'); switchPeriod('paidup');
   f('f_coverage').value=x.coverage||''; f('f_beneficiary').value=x.beneficiary||'';
   f('f_surrender').value=x.surrender||''; f('f_maturity').value=x.maturity||''; f('f_returnmemo').value=x.returnmemo||'';
   f('f_memo').value=x.memo||'';
@@ -804,7 +823,11 @@ async function saveItem(){
     who:f('f_who'), type:f('f_type'), kake:segKake,
     company:f('f_company'), name:f('f_name'), policy:f('f_policy'),
     premium:Number(f('f_premium'))||0, paycycle:f('f_paycycle'),
-    start_date:f('f_start')||null, end_date:f('f_end')||null, paidup:f('f_paidup')||null, nextpay:f('f_nextpay')||null,
+    start_date:f('f_start')||null, nextpay:f('f_nextpay')||null,
+    end_type:f('f_endtype'), end_date:(f('f_endtype')==='date'?(f('f_end')||null):null),
+    end_value:((f('f_endtype')==='age'||f('f_endtype')==='years')?f('f_endvalue'):null),
+    paidup_type:f('f_paiduptype'), paidup:(f('f_paiduptype')==='date'?(f('f_paidup')||null):null),
+    paidup_value:((f('f_paiduptype')==='age'||f('f_paiduptype')==='years')?f('f_paidupvalue'):null),
     coverage:f('f_coverage'), beneficiary:f('f_beneficiary'),
     surrender:Number(f('f_surrender'))||0, maturity:Number(f('f_maturity'))||0, returnmemo:f('f_returnmemo'),
     memo:f('f_memo'),
@@ -861,6 +884,20 @@ function updDate(id,btnId){
   const w=['日','月','火','水','木','金','土'][d.getDay()];
   b.textContent=`${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月${String(d.getDate()).padStart(2,'0')}日（${w}）`;
   b.classList.add('has');
+}
+function switchPeriod(k){
+  const t=document.getElementById('f_'+k+'type').value;
+  document.getElementById('wrap_'+k+'_date').style.display = t==='date'?'block':'none';
+  const val=document.getElementById('f_'+k+'value');
+  if(t==='age'||t==='years'){ val.style.display='block'; val.placeholder = t==='age'?'例：80（歳まで）':'例：10（年間）'; }
+  else val.style.display='none';
+}
+function periodText(type,dateVal,numVal){
+  type=type||'date';
+  if(type==='life') return '終身';
+  if(type==='age') return numVal?numVal+'歳まで':'—';
+  if(type==='years') return numVal?numVal+'年間':'—';
+  return dateVal||'—';
 }
 function closeModal(id){ document.getElementById(id).classList.remove('on'); }
 function openSettings(){ openModal('setModal'); }
