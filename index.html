@@ -317,6 +317,8 @@
     </div>
 
     <div class="field"><label>保険会社</label><input type="text" id="f_company" placeholder="例：〇〇生命"></div>
+    <div class="field"><label>保険会社のサイトURL（任意）</label><input type="url" id="f_companyurl" placeholder="https://..."></div>
+    <div class="field"><label>代理店・担当窓口（任意）</label><input type="text" id="f_agency" placeholder="代理店名や担当者"></div>
     <div class="field"><label>商品名</label><input type="text" id="f_name" placeholder="例：終身医療保険プラン"></div>
     <div class="field"><label>証券番号</label><input type="text" id="f_policy" placeholder="任意"></div>
 
@@ -395,6 +397,22 @@
     <div class="save-bar">
       <button class="btn-main" onclick="editCurrent()">編集する</button>
     </div>
+  </div>
+</div>
+
+<!-- ============ 請求記録モーダル ============ -->
+<div class="modal" id="claimModal">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>保険金請求の記録</h2>
+      <button class="close-x" onclick="closeModal('claimModal')">✕</button>
+    </div>
+    <div class="field"><label>受け取った日（請求日）</label>
+      <div class="date-wrap"><span class="date-btn" id="btn_claim">日付を選ぶ</span>
+      <input type="date" id="c_date" class="date-overlay" onclick="try{this.showPicker()}catch(e){}" onchange="updDate('c_date','btn_claim')"></div></div>
+    <div class="field"><label>受取金額</label><input type="number" id="c_amount" inputmode="numeric" placeholder="0"></div>
+    <div class="field"><label>内容メモ</label><input type="text" id="c_memo" placeholder="例：入院給付金 5日分"></div>
+    <div class="save-bar"><button class="btn-main" onclick="saveClaim()">記録する</button></div>
   </div>
 </div>
 
@@ -776,7 +794,7 @@ function showDetail(id){
   const row=(k,v)=> v?`<div class="drow"><span class="dk">${k}</span><span class="dv">${v}</span></div>`:'';
   let html = `<div class="detail-block"><div class="dh">基本</div>
     ${row('だれの', x.who)}${row('種類', x.type)}${row('区分', x.kake)}
-    ${row('保険会社', x.company)}${row('商品名', x.name)}${row('証券番号', x.policy)}</div>`;
+    ${row('保険会社', x.company)}${row('代理店', x.agency)}${row('商品名', x.name)}${row('証券番号', x.policy)}${x.company_url?`<div class="drow"><span class="dk">サイト</span><span class="dv"><a href="${x.company_url}" target="_blank" rel="noopener" style="color:var(--teal)">開く ↗</a></span></div>`:''}</div>`;
   html += `<div class="detail-block"><div class="dh">お金</div>
     ${row('保険料', x.premium?yen(x.premium)+'／'+x.paycycle:'')}
     ${row('年間換算', yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':''))}</div>`;
@@ -803,10 +821,44 @@ function showDetail(id){
     if(docs.length===0) html += `<div style="font-size:13px;color:var(--ink-soft)">まだ添付はありません</div>`;
     html += `<button class="doc-add" onclick="document.getElementById('docFile').click()">📎 証書（PDF・写真）を追加</button></div>`;
   }
+  if(useCloud){
+    const claims=x.claims||[]; let ctotal=0;
+    html += `<div class="detail-block"><div class="dh">保険金請求の記録</div>`;
+    claims.forEach((c,i)=>{
+      ctotal+=Number(c.amount)||0;
+      html += `<div class="doc-row"><span style="font-size:14px">${c.date||''}　${c.memo||''} ${c.amount?'<b>'+yen(c.amount)+'</b>':''}</span>
+        <button class="doc-del" onclick="delClaim(${i})">削除</button></div>`;
+    });
+    if(claims.length===0) html += `<div style="font-size:13px;color:var(--ink-soft)">まだ記録はありません</div>`;
+    else html += `<div style="text-align:right;font-weight:700;margin-top:6px">受取合計 ${yen(ctotal)}</div>`;
+    html += `<button class="doc-add" onclick="openClaimForm()">＋ 請求・受取を記録</button></div>`;
+  }
   document.getElementById('detailBody').innerHTML = html;
   openModal('detailModal');
 }
 function editCurrent(){ closeModal('detailModal'); openForm(curId); }
+function openClaimForm(){
+  document.getElementById('c_date').value=''; updDate('c_date','btn_claim');
+  document.getElementById('c_amount').value=''; document.getElementById('c_memo').value='';
+  openModal('claimModal');
+}
+async function saveClaim(){
+  const date=document.getElementById('c_date').value;
+  const amount=Number(document.getElementById('c_amount').value)||0;
+  const memo=document.getElementById('c_memo').value.trim();
+  if(!date && !amount && !memo){ toast('内容を入れてください'); return; }
+  const it=items.find(x=>x.id===curId); if(!it) return;
+  it.claims=it.claims||[]; it.claims.push({date,amount,memo});
+  await sb.from('hoken').update({claims:it.claims}).eq('id',curId);
+  closeModal('claimModal'); showDetail(curId); toast('記録しました');
+}
+async function delClaim(i){
+  if(!confirm('この記録を削除しますか？')) return;
+  const it=items.find(x=>x.id===curId); if(!it) return;
+  it.claims=it.claims||[]; it.claims.splice(i,1);
+  await sb.from('hoken').update({claims:it.claims}).eq('id',curId);
+  showDetail(curId); toast('削除しました');
+}
 async function uploadDoc(e){
   const file=e.target.files[0]; if(!file||!curId){ e.target.value=''; return; }
   if(file.size>10*1024*1024){ toast('10MBまでにしてください'); e.target.value=''; return; }
@@ -851,7 +903,7 @@ function openForm(id){
   document.getElementById('delBtn').style.display = id?'block':'none';
   const x = id?items.find(i=>i.id===id):{};
   f('f_who').value=x.who||''; f('f_type').value=x.type||'生命保険';
-  f('f_company').value=x.company||''; f('f_name').value=x.name||''; f('f_policy').value=x.policy||'';
+  f('f_company').value=x.company||''; f('f_companyurl').value=x.company_url||''; f('f_agency').value=x.agency||''; f('f_name').value=x.name||''; f('f_policy').value=x.policy||'';
   f('f_premium').value=x.premium||''; f('f_paycycle').value=x.paycycle||'月払';
   f('f_start').value=x.start_date||''; f('f_end').value=x.end_date||''; f('f_paidup').value=x.paidup||''; f('f_nextpay').value=x.nextpay||'';
   f('f_endtype').value=x.end_type||'date'; f('f_endvalue').value=x.end_value||'';
@@ -874,7 +926,7 @@ async function saveItem(){
   const row = {
     id: curId || (crypto.randomUUID ? crypto.randomUUID() : 'id'+Date.now()),
     who:f('f_who'), type:f('f_type'), kake:segKake,
-    company:f('f_company'), name:f('f_name'), policy:f('f_policy'),
+    company:f('f_company'), company_url:f('f_companyurl'), agency:f('f_agency'), name:f('f_name'), policy:f('f_policy'),
     premium:Number(f('f_premium'))||0, paycycle:f('f_paycycle'),
     start_date:f('f_start')||null, nextpay:f('f_nextpay')||null,
     end_type:f('f_endtype'), end_date:(f('f_endtype')==='date'?(f('f_end')||null):null),
@@ -885,6 +937,7 @@ async function saveItem(){
     surrender:Number(f('f_surrender'))||0, maturity:Number(f('f_maturity'))||0, returnmemo:f('f_returnmemo'),
     memo:f('f_memo'),
     docs: curId ? (items.find(i=>i.id===curId)?.docs || []) : [],
+    claims: curId ? (items.find(i=>i.id===curId)?.claims || []) : [],
     created_at: curId ? (items.find(i=>i.id===curId)?.created_at||new Date().toISOString()) : new Date().toISOString()
   };
   const saved = await upsertRow(row);
