@@ -422,6 +422,15 @@
       <button class="set-btn" onclick="closeModal('setModal');setTimeout(()=>window.print(),300)">印刷する</button>
     </div>
     <div class="set-item">
+      <div class="st">👤 家族メンバー</div>
+      <div class="sd">氏名と生年月日を登録すると、保険の「だれの」で選べ、年齢満了（◯歳まで）が西暦でも表示されます。</div>
+      <div id="memberList" style="margin-bottom:10px"></div>
+      <input type="text" id="mName" placeholder="名前（例：父・近藤太郎）">
+      <label style="font-size:12px;color:var(--ink-soft);display:block;margin-bottom:4px">生年月日</label>
+      <input type="date" id="mBday">
+      <button class="set-btn" onclick="addMember()">メンバーを追加</button>
+    </div>
+    <div class="set-item">
       <div class="st">🔑 あいことばの変更</div>
       <div class="sd">新しいあいことばにします。家族全員の次回ログインから有効です。</div>
       <input type="password" id="newPw1" placeholder="新しいあいことば" autocomplete="new-password">
@@ -464,6 +473,7 @@ try{
 }catch(e){ console.warn('Supabase未設定'); }
 
 let items = [];      // 保険データ
+let members = [];    // 家族メンバー
 let viewMode = 'card';
 let curId = null;    // 編集/詳細中のid
 let whoFilter = '';
@@ -525,8 +535,50 @@ async function loadData(){
     // クラウド未設定のときは端末内に一時保存（お試し用）
     try{ items = JSON.parse(localStorage.getItem('hoken_local')||'[]'); }catch(e){ items=[]; }
   }
+  await loadMembers();
   buildFilters();
   render();
+}
+
+async function loadMembers(){
+  if(!useCloud){ members=[]; return; }
+  try{ const {data}=await sb.from('hoken_members').select('*').order('created_at',{ascending:true}); members=data||[]; }
+  catch(e){ members=[]; }
+}
+function birthdayOf(who){ const m=members.find(x=>x.name===who); return m&&m.birthday?m.birthday:null; }
+function calcAge(bday){
+  const b=new Date(bday), n=new Date();
+  let a=n.getFullYear()-b.getFullYear();
+  if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) a--;
+  return a;
+}
+async function addMember(){
+  const name=document.getElementById('mName').value.trim();
+  const bday=document.getElementById('mBday').value;
+  if(!name){ toast('名前を入れてください'); return; }
+  if(!useCloud){ toast('クラウド未設定では登録できません'); return; }
+  const row={id:(crypto.randomUUID?crypto.randomUUID():'m'+Date.now()),name,birthday:bday||null,created_at:new Date().toISOString()};
+  const {error}=await sb.from('hoken_members').upsert(row);
+  if(error){ toast('登録エラー：'+error.message); return; }
+  members.push(row);
+  document.getElementById('mName').value=''; document.getElementById('mBday').value='';
+  renderMembers(); buildFilters(); toast('メンバーを追加しました');
+}
+async function delMember(id){
+  if(!confirm('このメンバーを削除しますか？（保険データは残ります）')) return;
+  await sb.from('hoken_members').delete().eq('id',id);
+  members=members.filter(m=>m.id!==id);
+  renderMembers(); buildFilters(); toast('削除しました');
+}
+function renderMembers(){
+  const box=document.getElementById('memberList'); if(!box) return;
+  if(members.length===0){ box.innerHTML='<div style="font-size:13px;color:var(--ink-soft)">まだ登録がありません</div>'; return; }
+  box.innerHTML=members.map(m=>{
+    const age=m.birthday?calcAge(m.birthday):null;
+    const sub=m.birthday?` <span style="color:var(--ink-soft);font-weight:400">（${m.birthday}${age!==null?'・'+age+'歳':''}）</span>`:'';
+    return `<div class="doc-row"><span style="font-weight:700;font-size:14px">${m.name}${sub}</span>
+      <button class="doc-del" onclick="delMember('${m.id}')">削除</button></div>`;
+  }).join('');
 }
 
 async function upsertRow(row){
@@ -592,7 +644,8 @@ function buildFilters(){
   });
   box.innerHTML = html;
   // datalist（入力補助）
-  document.getElementById('whoList').innerHTML = whos.map(w=>`<option value="${w}">`).join('');
+  const allWhos=[...new Set([...members.map(m=>m.name),...whos])];
+  document.getElementById('whoList').innerHTML = allWhos.map(w=>`<option value="${w}">`).join('');
 }
 function setWho(w){ whoFilter=w; buildFilters(); render(); }
 function colorFor(who){
@@ -659,7 +712,7 @@ function cardHtml(x){
     <div class="pc-grid">
       <div><span class="k">年間保険料</span><span class="v">${yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':'—')}</span></div>
       <div><span class="k">支払</span><span class="v">${x.premium?yen(x.premium)+'／'+x.paycycle:'—'}</span></div>
-      <div><span class="k">保険期間</span><span class="v">${periodText(x.end_type,x.end_date,x.end_value)}</span></div>
+      <div><span class="k">保険期間</span><span class="v">${periodText(x.end_type,x.end_date,x.end_value,birthdayOf(x.who))}</span></div>
       <div><span class="k">区分</span><span class="v">
         <span class="tag ${isTsumi?'tsumi':'kake'}">${x.kake||'—'}</span></span></div>
     </div>
@@ -728,7 +781,7 @@ function showDetail(id){
     ${row('保険料', x.premium?yen(x.premium)+'／'+x.paycycle:'')}
     ${row('年間換算', yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':''))}</div>`;
   html += `<div class="detail-block"><div class="dh">日付</div>
-    ${row('契約日', x.start_date)}${row('保険期間', periodText(x.end_type,x.end_date,x.end_value))}${row('払込期間', periodText(x.paidup_type,x.paidup,x.paidup_value))}${row('次回引き落とし', x.nextpay)}</div>`;
+    ${row('契約日', x.start_date)}${row('保険期間', periodText(x.end_type,x.end_date,x.end_value,birthdayOf(x.who)))}${row('払込期間', periodText(x.paidup_type,x.paidup,x.paidup_value,birthdayOf(x.who)))}${row('次回引き落とし', x.nextpay)}</div>`;
   const cov=`<div class="detail-block"><div class="dh">保障・受取</div>
     ${row('保障内容', x.coverage)}${row('受取人', x.beneficiary)}</div>`;
   if(x.coverage||x.beneficiary) html+=cov;
@@ -892,15 +945,20 @@ function switchPeriod(k){
   if(t==='age'||t==='years'){ val.style.display='block'; val.placeholder = t==='age'?'例：80（歳まで）':'例：10（年間）'; }
   else val.style.display='none';
 }
-function periodText(type,dateVal,numVal){
+function periodText(type,dateVal,numVal,birthday){
   type=type||'date';
   if(type==='life') return '終身';
-  if(type==='age') return numVal?numVal+'歳まで':'—';
+  if(type==='age'){
+    if(!numVal) return '—';
+    let s=numVal+'歳まで';
+    if(birthday){ const y=new Date(birthday).getFullYear()+Number(numVal); const now=new Date().getFullYear(); s+=`（${y}年・あと${y-now}年）`; }
+    return s;
+  }
   if(type==='years') return numVal?numVal+'年間':'—';
   return dateVal||'—';
 }
 function closeModal(id){ document.getElementById(id).classList.remove('on'); }
-function openSettings(){ openModal('setModal'); }
+function openSettings(){ renderMembers(); openModal('setModal'); }
 function toggleView(){
   viewMode = viewMode==='card'?'compact':'card';
   document.getElementById('list').style.gridTemplateColumns =
