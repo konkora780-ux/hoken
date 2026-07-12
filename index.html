@@ -36,6 +36,7 @@
   .gate-card input:focus{outline:none;border-color:var(--teal);}
   .gate-card button{width:100%;padding:13px;background:var(--teal);color:#fff;
     border-radius:12px;font-size:16px;font-weight:700;}
+  .gate-card button.alt{background:var(--card);color:var(--teal);border:1.5px solid var(--teal);margin-top:10px;}
   .gate-err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px;}
 
   /* ---- ヘッダー ---- */
@@ -218,6 +219,7 @@
     <p>あいことばを入れてください</p>
     <input type="password" id="gatePw" placeholder="あいことば" autocomplete="off">
     <button onclick="tryLogin()">ひらく</button>
+    <button id="faceIdBtn" class="alt" style="display:none;" onclick="loginWithFaceId()">🔐 Face ID / Touch IDでひらく</button>
     <div class="gate-err" id="gateErr"></div>
   </div>
 </div>
@@ -455,6 +457,14 @@
       <input type="password" id="newPw2" placeholder="もう一度入力" autocomplete="new-password">
       <button class="set-btn" onclick="changePw()">変更する</button>
     </div>
+    <div class="set-item" id="faceIdSection">
+      <div class="st">🔐 Face ID / Touch ID</div>
+      <div class="sd">この端末に限り、あいことばの代わりにFace ID・Touch IDでひらけるようにします。あいことばはこの端末にのみ保存され、他の端末には影響しません。</div>
+      <div id="faceIdStatus" style="font-size:13px;color:var(--ink-soft);margin-bottom:10px"></div>
+      <input type="password" id="faceIdPw" placeholder="確認のため今のあいことばを入力" autocomplete="off">
+      <button class="set-btn" onclick="enableFaceId()">この端末で登録する</button>
+      <button class="set-btn warn" onclick="disableFaceId()" style="margin-top:8px">この端末の登録を解除する</button>
+    </div>
     <div class="set-item">
       <div class="st">🔒 ログアウト</div>
       <div class="sd">あいことばの入力画面に戻ります。</div>
@@ -511,8 +521,8 @@ async function loadConfig(){
     if(data && data.pw_hash) savedHash=data.pw_hash;
   }catch(e){}
 }
-async function tryLogin(){
-  const pw=document.getElementById('gatePw').value;
+async function tryLogin(pwArg){
+  const pw = pwArg!==undefined ? pwArg : document.getElementById('gatePw').value;
   const ok = savedHash ? (await sha256(pw))===savedHash : (pw===CONFIG.PASSWORD);
   if(ok){
     sessionStorage.setItem('hoken_ok','1');
@@ -521,9 +531,82 @@ async function tryLogin(){
   }else{
     document.getElementById('gateErr').textContent='あいことばが違います';
   }
+  return ok;
 }
 document.getElementById('gatePw').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
 function logout(){ sessionStorage.removeItem('hoken_ok'); location.reload(); }
+
+/* ---- Face ID / Touch ID（この端末限定の生体認証ゲート） ---- */
+function b64encode(str){ return btoa(String.fromCharCode(...new TextEncoder().encode(str))); }
+function b64decode(b64){ return new TextDecoder().decode(Uint8Array.from(atob(b64),c=>c.charCodeAt(0))); }
+async function faceIdAvailable(){
+  return !!(window.PublicKeyCredential && window.isSecureContext &&
+    await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+}
+async function initFaceIdGate(){
+  const btn=document.getElementById('faceIdBtn'); if(!btn) return;
+  const saved=localStorage.getItem('hoken_faceid');
+  btn.style.display = (saved && await faceIdAvailable()) ? 'block' : 'none';
+}
+async function loginWithFaceId(){
+  const saved=JSON.parse(localStorage.getItem('hoken_faceid')||'null');
+  if(!saved) return;
+  try{
+    const credIdBytes=Uint8Array.from(atob(saved.credId),c=>c.charCodeAt(0));
+    await navigator.credentials.get({publicKey:{
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials:[{id:credIdBytes,type:'public-key'}],
+      userVerification:'required',
+      timeout:60000
+    }});
+  }catch(e){
+    document.getElementById('gateErr').textContent='Face ID認証がキャンセルまたは失敗しました';
+    return;
+  }
+  const pw=b64decode(saved.pw);
+  const ok=await tryLogin(pw);
+  if(!ok){
+    localStorage.removeItem('hoken_faceid');
+    document.getElementById('faceIdBtn').style.display='none';
+    document.getElementById('gateErr').textContent='あいことばが変更されたようです。あいことばを入力してください';
+  }
+}
+async function enableFaceId(){
+  const pw=document.getElementById('faceIdPw').value;
+  if(!pw){ toast('あいことばを入力してください'); return; }
+  const ok = savedHash ? (await sha256(pw))===savedHash : (pw===CONFIG.PASSWORD);
+  if(!ok){ toast('あいことばが違います'); return; }
+  if(!(await faceIdAvailable())){ toast('この端末ではFace ID/Touch IDが使えません'); return; }
+  try{
+    const cred=await navigator.credentials.create({publicKey:{
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp:{name:'家族の保険台帳'},
+      user:{ id:crypto.getRandomValues(new Uint8Array(16)), name:'family', displayName:'家族の保険台帳' },
+      pubKeyCredParams:[{alg:-7,type:'public-key'},{alg:-257,type:'public-key'}],
+      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required'},
+      timeout:60000
+    }});
+    const credId=btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+    localStorage.setItem('hoken_faceid', JSON.stringify({credId, pw:b64encode(pw)}));
+    document.getElementById('faceIdPw').value='';
+    renderFaceIdStatus();
+    initFaceIdGate();
+    toast('登録しました。次回からFace ID/Touch IDでひらけます');
+  }catch(e){ toast('登録できませんでした'); }
+}
+function disableFaceId(){
+  localStorage.removeItem('hoken_faceid');
+  renderFaceIdStatus();
+  const btn=document.getElementById('faceIdBtn'); if(btn) btn.style.display='none';
+  toast('この端末の登録を解除しました');
+}
+async function renderFaceIdStatus(){
+  const el=document.getElementById('faceIdStatus'); if(!el) return;
+  if(!(await faceIdAvailable())){ el.textContent='この端末はFace ID/Touch IDに対応していません'; return; }
+  const saved=localStorage.getItem('hoken_faceid');
+  el.textContent = saved ? '✅ この端末で登録済みです' : '未登録（この端末で使えます）';
+}
+initFaceIdGate();
 async function changePw(){
   const a=document.getElementById('newPw1').value, b=document.getElementById('newPw2').value;
   if(a.length<2){ toast('あいことばが短すぎます'); return; }
@@ -1011,7 +1094,7 @@ function periodText(type,dateVal,numVal,birthday){
   return dateVal||'—';
 }
 function closeModal(id){ document.getElementById(id).classList.remove('on'); }
-function openSettings(){ renderMembers(); openModal('setModal'); }
+function openSettings(){ renderMembers(); renderFaceIdStatus(); openModal('setModal'); }
 function toggleView(){
   viewMode = viewMode==='card'?'compact':'card';
   document.getElementById('list').style.gridTemplateColumns =
