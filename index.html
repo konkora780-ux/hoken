@@ -817,6 +817,7 @@ function cardHtml(x){
       <div><span class="k">年間保険料</span><span class="v">${yearly?yen(yearly):(x.paycycle==='一時払'?'前納済み':'—')}</span></div>
       <div><span class="k">支払</span><span class="v">${x.premium?yen(x.premium)+'／'+x.paycycle:'—'}</span></div>
       <div><span class="k">保険期間</span><span class="v">${periodText(x.end_type,x.end_date,x.end_value,birthdayOf(x.who))}</span></div>
+      <div><span class="k">払込期間</span><span class="v">${periodText(x.paidup_type,x.paidup,x.paidup_value,birthdayOf(x.who))}</span></div>
       <div><span class="k">区分</span><span class="v">
         <span class="tag ${isTsumi?'tsumi':'kake'}">${x.kake||'—'}</span></span></div>
     </div>
